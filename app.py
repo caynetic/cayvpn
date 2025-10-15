@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
-import os, sqlite3, subprocess, qrcode, io, re, base64, requests
+import os, sqlite3, subprocess, qrcode, io, re, base64
 from functools import wraps
 
 app = Flask(__name__)
@@ -15,23 +15,28 @@ ADMIN_USER = "admin"
 ADMIN_PASS = "password"  # 🔐 Change this too!
 
 # Detect server IP and region
+SERVER_IP = "Unknown"
+SERVER_REGION = "Unknown"
+
 try:
     # Get IP using curl
     ip_result = subprocess.run(['curl', '-s', '--max-time', '10', 'https://api.ipify.org'], capture_output=True, text=True)
     SERVER_IP = ip_result.stdout.strip()
     
-    # Get region using curl
-    region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipapi.co/{SERVER_IP}/json/'], capture_output=True, text=True)
-    region_data = region_result.stdout.strip()
-    if region_data:
-        import json
-        region_json = json.loads(region_data)
-        SERVER_REGION = f"{region_json.get('city', 'Unknown')}, {region_json.get('country_name', 'Unknown')}"
-    else:
-        SERVER_REGION = "Unknown"
-    
-    if not SERVER_IP or SERVER_IP == 'Unknown':
-        raise Exception("IP detection failed")
+    if SERVER_IP and SERVER_IP != 'Unknown':
+        # Get region using curl
+        try:
+            region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipapi.co/{SERVER_IP}/json/'], capture_output=True, text=True)
+            region_data = region_result.stdout.strip()
+            if region_data:
+                import json
+                region_json = json.loads(region_data)
+                city = region_json.get('city', 'Unknown')
+                country = region_json.get('country_name', 'Unknown')
+                if city != 'Unknown' or country != 'Unknown':
+                    SERVER_REGION = f"{city}, {country}"
+        except:
+            pass  # Region detection failed, keep as Unknown
 except Exception as e:
     print(f"IP detection failed: {e}")
     # Fallback to local IP detection
