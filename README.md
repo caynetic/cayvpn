@@ -3,11 +3,12 @@
 A web-based interface for managing WireGuard peers and monitoring server services (WireGuard + AdGuard Home).
 
 ## Features
-- Add/remove WireGuard peers with auto-generated keys
+- Add/remove WireGuard peers with auto-generated keys and IPs
 - Download peer configs and QR codes
 - Monitor WireGuard and AdGuard Home status
 - Restart services via web UI
 - Bootstrap-based modern UI
+- Auto-detects server IP and location
 
 ## Installation
 
