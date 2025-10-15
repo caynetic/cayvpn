@@ -30,9 +30,17 @@
         <div class="card mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
             <h5>AdGuard Home Status</h5>
-            <form method="post" action="/restart_adg" class="d-inline">
-              <button type="submit" class="btn btn-warning btn-sm">Restart AdGuard</button>
-            </form>
+            <div>
+              <form method="post" action="/start_adg" class="d-inline me-2">
+                <button type="submit" class="btn btn-success btn-sm">Start</button>
+              </form>
+              <form method="post" action="/stop_adg" class="d-inline me-2">
+                <button type="submit" class="btn btn-danger btn-sm">Stop</button>
+              </form>
+              <form method="post" action="/restart_adg" class="d-inline">
+                <button type="submit" class="btn btn-warning btn-sm">Restart</button>
+              </form>
+            </div>
           </div>
           <div class="card-body">
             <pre>{{ adg_status }}</pre>

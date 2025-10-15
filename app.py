@@ -16,17 +16,22 @@ ADMIN_PASS = "password"  # 🔐 Change this too!
 
 # Detect server IP and region
 try:
-    # Get IP
-    ip_response = requests.get('https://api.ipify.org?format=json', timeout=10)
-    SERVER_IP = ip_response.json().get('ip', 'Unknown')
+    # Get IP using curl
+    ip_result = subprocess.run(['curl', '-s', '--max-time', '10', 'https://api.ipify.org'], capture_output=True, text=True)
+    SERVER_IP = ip_result.stdout.strip()
     
-    # Get region
-    region_response = requests.get(f'https://ipapi.co/{SERVER_IP}/json/', timeout=10)
-    region_data = region_response.json()
-    SERVER_REGION = f"{region_data.get('city', 'Unknown')}, {region_data.get('country_name', 'Unknown')}"
+    # Get region using curl
+    region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipapi.co/{SERVER_IP}/json/'], capture_output=True, text=True)
+    region_data = region_result.stdout.strip()
+    if region_data:
+        import json
+        region_json = json.loads(region_data)
+        SERVER_REGION = f"{region_json.get('city', 'Unknown')}, {region_json.get('country_name', 'Unknown')}"
+    else:
+        SERVER_REGION = "Unknown"
     
-    if SERVER_IP == 'Unknown' or SERVER_REGION == 'Unknown, Unknown':
-        raise Exception("API returned unknown")
+    if not SERVER_IP or SERVER_IP == 'Unknown':
+        raise Exception("IP detection failed")
 except Exception as e:
     print(f"IP detection failed: {e}")
     # Fallback to local IP detection
@@ -303,6 +308,24 @@ def restart_wg():
 def restart_adg():
     try:
         subprocess.run(["systemctl", "restart", "AdGuardHome"], check=True)
+    except:
+        pass
+    return redirect(url_for("server"))
+
+@app.route("/start_adg", methods=["POST"])
+@login_required
+def start_adg():
+    try:
+        subprocess.run(["systemctl", "start", "AdGuardHome"], check=True)
+    except:
+        pass
+    return redirect(url_for("server"))
+
+@app.route("/stop_adg", methods=["POST"])
+@login_required
+def stop_adg():
+    try:
+        subprocess.run(["systemctl", "stop", "AdGuardHome"], check=True)
     except:
         pass
     return redirect(url_for("server"))
