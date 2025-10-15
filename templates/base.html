@@ -10,7 +10,9 @@
   <div class="container mt-5">
     <div class="row">
       <div class="col-md-12 text-center mb-4">
-        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Logo" class="img-fluid" style="max-height: 100px;">
+        <a href="https://caynetic.com" target="_blank" rel="noopener noreferrer">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="img-fluid" style="max-height: 100px;">
+        </a>
       </div>
     </div>
     {% block content %}{% endblock %}
