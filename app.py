@@ -42,24 +42,60 @@ try:
     print(f"Detected IP: {SERVER_IP}")
     
     if SERVER_IP and SERVER_IP != 'Unknown':
-        # Get region using curl to ipinfo.io
-        try:
-            region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipinfo.io/{SERVER_IP}/json'], capture_output=True, text=True)
-            region_data = region_result.stdout.strip()
-            if region_data:
-                import json
-                region_json = json.loads(region_data)
-                city = region_json.get('city', 'Unknown')
-                region = region_json.get('region', 'Unknown')
-                country = region_json.get('country', 'Unknown')
-                if city != 'Unknown':
-                    SERVER_REGION = f"{city}, {country}"
-                elif region != 'Unknown':
-                    SERVER_REGION = f"{region}, {country}"
-                elif country != 'Unknown':
-                    SERVER_REGION = country
-        except:
-            pass  # Region detection failed, keep as Unknown
+        # Get region using multiple services
+        region_services = [
+            f'https://ipinfo.io/{SERVER_IP}/json',
+            f'https://ipapi.co/{SERVER_IP}/json',
+            f'https://api.ip.sb/jsonip?ip={SERVER_IP}'
+        ]
+        
+        for service in region_services:
+            try:
+                print(f"Trying region service: {service}")
+                region_result = subprocess.run(['curl', '-s', '--max-time', '10', service], capture_output=True, text=True)
+                region_data = region_result.stdout.strip()
+                print(f"Region response: {region_data[:200]}...")
+                
+                if region_data and region_data != 'null' and len(region_data) > 10:
+                    import json
+                    region_json = json.loads(region_data)
+                    
+                    # Handle different API response formats
+                    if 'city' in region_json and region_json.get('city'):
+                        city = region_json['city']
+                        country = region_json.get('country', region_json.get('country_name', 'Unknown'))
+                        SERVER_REGION = f"{city}, {country}"
+                        print(f"Region detected: {SERVER_REGION}")
+                        break
+                    elif 'region' in region_json and region_json.get('region'):
+                        region_name = region_json['region']
+                        country = region_json.get('country', region_json.get('country_name', 'Unknown'))
+                        SERVER_REGION = f"{region_name}, {country}"
+                        print(f"Region detected: {SERVER_REGION}")
+                        break
+                    elif 'country' in region_json and region_json.get('country'):
+                        SERVER_REGION = region_json['country']
+                        print(f"Country detected: {SERVER_REGION}")
+                        break
+            except Exception as e:
+                print(f"Region service {service} failed: {e}")
+                continue
+        
+        if SERVER_REGION == "Unknown":
+            print("All region detection services failed")
+except Exception as e:
+    print(f"IP detection failed: {e}")
+    # Fallback to local IP detection
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        SERVER_IP = s.getsockname()[0]
+        s.close()
+        SERVER_REGION = "Local Network"
+    except:
+        SERVER_IP = "127.0.0.1"
+        SERVER_REGION = "Localhost"
 except Exception as e:
     print(f"IP detection failed: {e}")
     # Fallback to local IP detection
