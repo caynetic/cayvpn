@@ -119,24 +119,24 @@ def import_from_config():
 import_from_config()
 
 # Add mock data if database is empty
-def add_mock_data():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM peers")
-    count = cur.fetchone()[0]
-    if count == 0:
-        # Mock peers with generated keys (replace with real wg genkey outputs)
-        mock_peers = [
-            ("Alice", "WG1PublicKeyHere", "WG1PrivateKeyHere", "10.8.0.2"),
-            ("Bob", "WG2PublicKeyHere", "WG2PrivateKeyHere", "10.8.0.3"),
-            ("Charlie", "WG3PublicKeyHere", "WG3PrivateKeyHere", "10.8.0.4"),
-        ]
-        for name, pub, priv, ip in mock_peers:
-            cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", (name, pub, priv, ip))
-        conn.commit()
-    conn.close()
+# def add_mock_data():
+#     conn = sqlite3.connect(DB_PATH)
+#     cur = conn.cursor()
+#     cur.execute("SELECT COUNT(*) FROM peers")
+#     count = cur.fetchone()[0]
+#     if count == 0:
+#         # Mock peers with generated keys (replace with real wg genkey outputs)
+#         mock_peers = [
+#             ("Alice", "WG1PublicKeyHere", "WG1PrivateKeyHere", "10.8.0.2"),
+#             ("Bob", "WG2PublicKeyHere", "WG2PrivateKeyHere", "10.8.0.3"),
+#             ("Charlie", "WG3PublicKeyHere", "WG3PrivateKeyHere", "10.8.0.4"),
+#         ]
+#         for name, pub, priv, ip in mock_peers:
+#             cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", (name, pub, priv, ip))
+#         conn.commit()
+#     conn.close()
 
-add_mock_data()
+# add_mock_data()
 
 # === Routes ===
 @app.route("/login", methods=["GET", "POST"])
