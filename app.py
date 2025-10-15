@@ -37,121 +37,106 @@ def get_public_ip():
             continue
     return None
 
+import json
+
 try:
-    SERVER_IP = get_public_ip() or "Unknown"
-    print(f"Detected IP: {SERVER_IP}")
-    
-    if SERVER_IP and SERVER_IP != 'Unknown':
-        # Get detailed region info using ipinfo.io
+    SERVER_IP = get_public_ip()
+    if not SERVER_IP:
+        # Fallback to local IP detection
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        SERVER_IP = s.getsockname()[0]
+        s.close()
+        SERVER_REGION = "Local Network"
+    else:
+        print(f"✓ Detected Public IP: {SERVER_IP}")
+        
+        # Get detailed region info using ipinfo.io with authentication token (free tier)
         try:
-            print(f"Getting detailed info for IP: {SERVER_IP}")
-            region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipinfo.io/{SERVER_IP}/json'], capture_output=True, text=True)
+            print(f"Fetching location data for {SERVER_IP}...")
+            # Try without token first
+            cmd = ['curl', '-s', '--max-time', '10', f'https://ipinfo.io/{SERVER_IP}/json']
+            region_result = subprocess.run(cmd, capture_output=True, text=True)
             region_data = region_result.stdout.strip()
-            print(f"Region response length: {len(region_data)}")
             
-            if region_data and region_data != 'null' and len(region_data) > 10:
-                import json
-                region_json = json.loads(region_data)
-                print(f"Parsed JSON keys: {list(region_json.keys())}")
-                
-                # Build detailed region string
-                details = []
-                
-                if 'ip' in region_json:
-                    details.append(f"IP: {region_json['ip']}")
-                
-                if 'hostname' in region_json and region_json['hostname']:
-                    details.append(f"Hostname: {region_json['hostname']}")
-                
-                if 'org' in region_json and region_json['org']:
-                    # Parse ASN and ISP from org field like "AS14061 DigitalOcean, LLC"
-                    org_parts = region_json['org'].split(' ', 1)
-                    if len(org_parts) == 2:
-                        asn = org_parts[0].replace('AS', '')
-                        isp = org_parts[1]
-                        details.append(f"ASN: {asn}")
-                        details.append(f"ISP: {isp}")
-                
-                if 'country' in region_json and region_json['country']:
-                    details.append(f"Country: {region_json['country']}")
-                
-                if 'region' in region_json and region_json['region']:
-                    details.append(f"State/Region: {region_json['region']}")
-                
-                if 'city' in region_json and region_json['city']:
-                    details.append(f"City: {region_json['city']}")
-                
-                if 'loc' in region_json and region_json['loc']:
-                    # Parse latitude and longitude
-                    lat, lon = region_json['loc'].split(',')
-                    lat_float = float(lat)
-                    lon_float = float(lon)
+            print(f"Response received: {len(region_data)} bytes")
+            
+            if region_data and len(region_data) > 20:
+                try:
+                    region_json = json.loads(region_data)
+                    print(f"JSON parsed successfully. Keys: {', '.join(region_json.keys())}")
                     
-                    # Convert to degrees/minutes/seconds
-                    def decimal_to_dms(decimal, is_lat=True):
-                        direction = 'N' if is_lat and decimal >= 0 else 'S' if is_lat else 'E' if decimal >= 0 else 'W'
-                        decimal = abs(decimal)
-                        degrees = int(decimal)
-                        minutes = int((decimal - degrees) * 60)
-                        seconds = (decimal - degrees - minutes/60) * 3600
-                        return f"{degrees}° {minutes}' {seconds:.2f}\" {direction}"
-                    
-                    lat_dms = decimal_to_dms(lat_float, True)
-                    lon_dms = decimal_to_dms(lon_float, False)
-                    
-                    details.append(f"Latitude: {lat_float} ({lat_dms})")
-                    details.append(f"Longitude: {lon_float} ({lon_dms})")
+                    # Check for rate limit or error
+                    if 'error' in region_json:
+                        print(f"API Error: {region_json.get('error', {}).get('message', 'Unknown error')}")
+                        SERVER_REGION = f"City: {SERVER_IP}\nCountry: Unknown\n(Rate limited - try again later)"
+                    else:
+                        # Build detailed region string
+                        details = []
+                        
+                        if region_json.get('hostname'):
+                            details.append(f"Hostname: {region_json['hostname']}")
+                        
+                        if region_json.get('org'):
+                            org = region_json['org']
+                            # Parse ASN and ISP from org field like "AS14061 DigitalOcean, LLC"
+                            if org.startswith('AS'):
+                                org_parts = org.split(' ', 1)
+                                if len(org_parts) == 2:
+                                    asn = org_parts[0].replace('AS', '')
+                                    isp = org_parts[1]
+                                    details.append(f"ASN: {asn}")
+                                    details.append(f"ISP: {isp}")
+                            else:
+                                details.append(f"Organization: {org}")
+                        
+                        if region_json.get('city'):
+                            details.append(f"City: {region_json['city']}")
+                        
+                        if region_json.get('region'):
+                            details.append(f"State/Region: {region_json['region']}")
+                        
+                        if region_json.get('country'):
+                            details.append(f"Country: {region_json['country']}")
+                        
+                        if region_json.get('loc'):
+                            # Parse latitude and longitude
+                            lat, lon = region_json['loc'].split(',')
+                            details.append(f"Coordinates: {lat}, {lon}")
+                        
+                        if details:
+                            SERVER_REGION = '\n'.join(details)
+                            print(f"✓ Region info collected: {len(details)} fields")
+                        else:
+                            SERVER_REGION = "Location data not available"
+                            print("⚠ No location fields found in API response")
                 
-                if details:
-                    SERVER_REGION = '\n'.join(details)
-                    print(f"Region details collected: {len(details)} fields")
-                else:
-                    SERVER_REGION = "Unknown"
-                    print("No region details found in response")
+                except json.JSONDecodeError as je:
+                    print(f"✗ JSON parse error: {je}")
+                    print(f"Raw response: {region_data[:200]}")
+                    SERVER_REGION = "Unable to parse location data"
             else:
-                print(f"Invalid region response: {region_data[:100]}")
+                print(f"✗ Invalid or empty response from ipinfo.io")
+                SERVER_REGION = "Location service unavailable"
+                
         except Exception as e:
-            print(f"Region detection failed: {e}")
-            SERVER_REGION = "Unknown"
+            print(f"✗ Region detection error: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            SERVER_REGION = "Location detection failed"
+            
 except Exception as e:
-    print(f"IP detection failed: {e}")
-    # Fallback to local IP detection
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        SERVER_IP = s.getsockname()[0]
-        s.close()
-        SERVER_REGION = "Local Network"
-    except:
-        SERVER_IP = "127.0.0.1"
-        SERVER_REGION = "Localhost"
-except Exception as e:
-    print(f"IP detection failed: {e}")
-    # Fallback to local IP detection
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        SERVER_IP = s.getsockname()[0]
-        s.close()
-        SERVER_REGION = "Local Network"
-    except:
-        SERVER_IP = "127.0.0.1"
-        SERVER_REGION = "Localhost"
-except Exception as e:
-    print(f"IP detection failed: {e}")
-    # Fallback to local IP detection
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        SERVER_IP = s.getsockname()[0]
-        s.close()
-        SERVER_REGION = "Local Network"
-    except:
-        SERVER_IP = "127.0.0.1"
-        SERVER_REGION = "Localhost"
+    print(f"✗ IP detection failed: {type(e).__name__}: {e}")
+    import traceback
+    traceback.print_exc()
+    SERVER_IP = "127.0.0.1"
+    SERVER_REGION = "Localhost"
+
+print(f"\n{'='*50}")
+print(f"Server IP: {SERVER_IP}")
+print(f"Region Info:\n{SERVER_REGION}")
+print(f"{'='*50}\n")
 
 # === Database Setup ===
 def init_db():
@@ -216,17 +201,72 @@ def get_next_ip():
     return f"10.8.0.{next_num}"
 
 def write_wg_conf():
-    peers = get_peers()
-    if not os.path.exists(SERVER_PUB):
-        return
-    with open(SERVER_PUB) as f:
-        server_pub = f.read().strip()
-    base = f"[Interface]\nPrivateKey = {open(SERVER_PRIV).read().strip()}\nAddress = 10.8.0.1/24\nListenPort = 43210\n"
-    for _, name, pubkey, _, ip in peers:
-        base += f"\n[Peer]\n# {name}\nPublicKey = {pubkey}\nAllowedIPs = {ip}/32\n"
-    with open(WG_CONF, "w") as f:
-        f.write(base)
-    subprocess.run(["wg-quick", "save", "wg0"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    """Write WireGuard configuration file with all peers"""
+    try:
+        peers = get_peers()
+        if not os.path.exists(SERVER_PUB):
+            print(f"✗ Server public key not found at {SERVER_PUB}")
+            return False
+        
+        with open(SERVER_PUB) as f:
+            server_pub = f.read().strip()
+        
+        with open(SERVER_PRIV) as f:
+            server_priv = f.read().strip()
+        
+        # Build config
+        config_lines = [
+            "[Interface]",
+            f"PrivateKey = {server_priv}",
+            "Address = 10.8.0.1/24",
+            "ListenPort = 43210",
+            ""
+        ]
+        
+        for _, name, pubkey, _, ip in peers:
+            config_lines.extend([
+                "[Peer]",
+                f"# {name}",
+                f"PublicKey = {pubkey}",
+                f"AllowedIPs = {ip}/32",
+                ""
+            ])
+        
+        config_content = "\n".join(config_lines)
+        
+        # Write config
+        try:
+            with open(WG_CONF, "w") as f:
+                f.write(config_content)
+            print(f"✓ WireGuard config written to {WG_CONF}")
+        except PermissionError:
+            print(f"⚠ Permission denied writing to {WG_CONF}, trying with sudo...")
+            # Write to temp file first
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.conf') as tmp:
+                tmp.write(config_content)
+                tmp_path = tmp.name
+            # Copy with sudo
+            subprocess.run(["sudo", "cp", tmp_path, WG_CONF], check=True)
+            subprocess.run(["sudo", "chmod", "600", WG_CONF], check=True)
+            os.unlink(tmp_path)
+            print(f"✓ WireGuard config written to {WG_CONF} (with sudo)")
+        
+        # Try to reload WireGuard
+        result = subprocess.run(["wg-quick", "save", "wg0"], 
+                              stdout=subprocess.DEVNULL, 
+                              stderr=subprocess.PIPE,
+                              text=True)
+        if result.returncode != 0:
+            print(f"⚠ wg-quick save failed: {result.stderr}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error writing WireGuard config: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def import_from_config():
     """Import peers from existing wg0.conf if database is empty"""
@@ -298,19 +338,40 @@ def index():
 @login_required
 def add_peer():
     if request.method == "POST":
-        name = request.form["name"]
-        ip = get_next_ip()
-        priv_key = subprocess.getoutput("wg genkey")
-        pub_key = subprocess.getoutput(f"echo {priv_key} | wg pubkey")
+        try:
+            name = request.form.get("name", "").strip()
+            if not name:
+                return render_template("add_peer.html", error="Peer name is required")
+            
+            ip = get_next_ip()
+            print(f"Adding new peer '{name}' with IP {ip}")
+            
+            # Generate keys
+            priv_key = subprocess.getoutput("wg genkey")
+            pub_key = subprocess.getoutput(f"echo '{priv_key}' | wg pubkey")
+            
+            print(f"Generated keys for {name}")
 
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("INSERT OR IGNORE INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", (name, pub_key, priv_key, ip))
-        conn.commit()
-        conn.close()
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
+                       (name, pub_key, priv_key, ip))
+            conn.commit()
+            peer_id = cur.lastrowid
+            conn.close()
+            
+            print(f"✓ Peer '{name}' added to database (ID: {peer_id})")
 
-        write_wg_conf()
-        return redirect(url_for("index"))
+            write_wg_conf()
+            print(f"✓ WireGuard config updated")
+            
+            return redirect(url_for("index"))
+        except Exception as e:
+            print(f"✗ Error adding peer: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return render_template("add_peer.html", error=f"Failed to add peer: {str(e)}")
+    
     return render_template("add_peer.html")
 
 @app.route("/remove/<int:peer_id>")

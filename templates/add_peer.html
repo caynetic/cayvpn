@@ -10,10 +10,14 @@
         <h2 class="mb-0">Add New Peer</h2>
       </div>
       <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
         <form method="post">
           <div class="mb-3">
             <label for="name" class="form-label">Peer Name</label>
-            <input type="text" class="form-control" id="name" name="name" required>
+            <input type="text" class="form-control" id="name" name="name" required placeholder="e.g., Alice's iPhone">
+            <small class="form-text text-muted">Keys and IP will be auto-generated</small>
           </div>
           <button type="submit" class="btn btn-primary">Add Peer</button>
           <a href="/" class="btn btn-secondary ms-2">Back</a>
