@@ -18,10 +18,28 @@ ADMIN_PASS = "password"  # 🔐 Change this too!
 SERVER_IP = "Unknown"
 SERVER_REGION = "Unknown"
 
+def get_public_ip():
+    """Try multiple services to get public IP"""
+    services = [
+        'https://api.ipify.org',
+        'https://ipv4.icanhazip.com',
+        'https://checkip.amazonaws.com',
+        'https://ipinfo.io/ip'
+    ]
+    
+    for service in services:
+        try:
+            result = subprocess.run(['curl', '-s', '--max-time', '5', service], capture_output=True, text=True)
+            ip = result.stdout.strip()
+            if ip and len(ip.split('.')) == 4:  # Basic IPv4 validation
+                return ip
+        except:
+            continue
+    return None
+
 try:
-    # Get IP using curl
-    ip_result = subprocess.run(['curl', '-s', '--max-time', '10', 'https://api.ipify.org'], capture_output=True, text=True)
-    SERVER_IP = ip_result.stdout.strip()
+    SERVER_IP = get_public_ip() or "Unknown"
+    print(f"Detected IP: {SERVER_IP}")
     
     if SERVER_IP and SERVER_IP != 'Unknown':
         # Get region using curl to ipinfo.io
