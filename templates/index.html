@@ -12,13 +12,16 @@
       <div class="card-header">
         <h5>Server Information</h5>
       </div>
-      <div class="card-body">
-        <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
-        <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
-        <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
-        <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
-        <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
-      </div>
+        <div class="card-body">
+          <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
+          <div class="mb-1">
+            <strong>Region Details:</strong><br>
+            <small style="white-space: pre-line;">{{ server_region }}</small>
+          </div>
+          <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
+          <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
+          <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
+        </div>
     </div>
     
     <!-- Statistics -->
