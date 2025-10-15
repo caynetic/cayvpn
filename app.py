@@ -16,12 +16,30 @@ ADMIN_PASS = "password"  # 🔐 Change this too!
 
 # Detect server IP and region
 try:
-    ip_data = requests.get('http://ip-api.com/json/', timeout=5).json()
-    SERVER_IP = ip_data.get('query', 'Unknown')
-    SERVER_REGION = f"{ip_data.get('city', 'Unknown')}, {ip_data.get('country', 'Unknown')}"
-except:
-    SERVER_IP = "192.168.0.134"  # Fallback
-    SERVER_REGION = "Home Network"
+    # Get IP
+    ip_response = requests.get('https://api.ipify.org?format=json', timeout=10)
+    SERVER_IP = ip_response.json().get('ip', 'Unknown')
+    
+    # Get region
+    region_response = requests.get(f'https://ipapi.co/{SERVER_IP}/json/', timeout=10)
+    region_data = region_response.json()
+    SERVER_REGION = f"{region_data.get('city', 'Unknown')}, {region_data.get('country_name', 'Unknown')}"
+    
+    if SERVER_IP == 'Unknown' or SERVER_REGION == 'Unknown, Unknown':
+        raise Exception("API returned unknown")
+except Exception as e:
+    print(f"IP detection failed: {e}")
+    # Fallback to local IP detection
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        SERVER_IP = s.getsockname()[0]
+        s.close()
+        SERVER_REGION = "Local Network"
+    except:
+        SERVER_IP = "127.0.0.1"
+        SERVER_REGION = "Localhost"
 
 # === Database Setup ===
 def init_db():
