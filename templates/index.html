@@ -18,11 +18,11 @@
             <h5>Server Information</h5>
           </div>
           <div class="card-body">
-            <p class="mb-1"><strong>IP Address:</strong> 192.168.0.134</p>
-            <p class="mb-1"><strong>Region:</strong> Home Network</p>
+            <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
+            <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
             <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
-            <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://192.168.0.134:3000" target="_blank">http://192.168.0.134:3000</a></p>
-            <p class="mb-1"><strong>DNS:</strong> 192.168.0.134:53</p>
+            <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
+            <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
           </div>
         </div>
         

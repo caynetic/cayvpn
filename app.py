@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
-import os, sqlite3, subprocess, qrcode, io, re, base64
+import os, sqlite3, subprocess, qrcode, io, re, base64, requests
 from functools import wraps
 
 app = Flask(__name__)
@@ -13,6 +13,15 @@ SERVER_PUB = os.path.join(WG_DIR, "server.pub")
 
 ADMIN_USER = "admin"
 ADMIN_PASS = "password"  # 🔐 Change this too!
+
+# Detect server IP and region
+try:
+    ip_data = requests.get('http://ip-api.com/json/', timeout=5).json()
+    SERVER_IP = ip_data.get('query', 'Unknown')
+    SERVER_REGION = f"{ip_data.get('city', 'Unknown')}, {ip_data.get('country', 'Unknown')}"
+except:
+    SERVER_IP = "192.168.0.134"  # Fallback
+    SERVER_REGION = "Home Network"
 
 # === Database Setup ===
 def init_db():
@@ -67,6 +76,14 @@ def get_peers():
     rows = cur.fetchall()
     conn.close()
     return rows
+
+def get_next_ip():
+    peers = get_peers()
+    existing_ips = [int(ip.split('.')[-1]) for _, _, _, _, ip in peers if ip.startswith('10.8.0.')]
+    if not existing_ips:
+        return "10.8.0.2"
+    next_num = max(existing_ips) + 1
+    return f"10.8.0.{next_num}"
 
 def write_wg_conf():
     peers = get_peers()
@@ -145,14 +162,14 @@ def logout():
 @login_required
 def index():
     peers = get_peers()
-    return render_template("index.html", peers=peers)
+    return render_template("index.html", peers=peers, server_ip=SERVER_IP, server_region=SERVER_REGION)
 
 @app.route("/add", methods=["GET", "POST"])
 @login_required
 def add_peer():
     if request.method == "POST":
         name = request.form["name"]
-        ip = request.form["ip"]
+        ip = get_next_ip()
         priv_key = subprocess.getoutput("wg genkey")
         pub_key = subprocess.getoutput(f"echo {priv_key} | wg pubkey")
 
@@ -198,7 +215,7 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = {server_pub}
-Endpoint = 192.168.0.134:43210
+Endpoint = {SERVER_IP}:43210
 AllowedIPs = 0.0.0.0/0, ::/0
 """
     buf = io.BytesIO()
@@ -227,7 +244,7 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = {server_pub}
-Endpoint = 192.168.0.134:43210
+Endpoint = {SERVER_IP}:43210
 AllowedIPs = 0.0.0.0/0, ::/0
 """
     qr = qrcode.make(qr_text)
