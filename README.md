@@ -29,7 +29,7 @@ A web-based interface for managing WireGuard peers and monitoring server service
    sudo apt install python3 python3-pip python3-venv
    python3 -m venv venv
    source venv/bin/activate
-   pip install flask qrcode[pil] requests
+   pip install -r requirements.txt
    ```
 
 3. **Run the app:**
