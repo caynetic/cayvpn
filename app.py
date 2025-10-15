@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.secret_key = "ChangeThisNow_!#"  # 🔐 Change this in production
 
 DB_PATH = "wg.db"
-WG_DIR = "/etc/wireguard"  # Change back for server deployment
+WG_DIR = "/etc/wireguard"
 WG_CONF = os.path.join(WG_DIR, "wg0.conf")
 SERVER_PRIV = os.path.join(WG_DIR, "server.key")
 SERVER_PUB = os.path.join(WG_DIR, "server.pub")
@@ -120,6 +120,8 @@ def add_mock_data():
     conn.close()
 
 add_mock_data()
+
+# === Routes ===
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if "logged_in" in session:
@@ -204,22 +206,9 @@ AllowedIPs = 0.0.0.0/0, ::/0
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name=f"{name}.conf")
 
-@app.route("/server")
+@app.route("/qr/<int:peer_id>")
 @login_required
-def server():
-    # Get WG status
-    try:
-        wg_status = subprocess.getoutput("wg show wg0")
-    except:
-        wg_status = "Error: WireGuard not available or wg0 not up"
-    
-    # Get AdGuard status
-    try:
-        adg_status = subprocess.getoutput("systemctl status AdGuardHome --no-pager -l")
-    except:
-        adg_status = "Error: AdGuard Home not installed or service not found"
-    
-    return render_template("server.html", wg_status=wg_status, adg_status=adg_status)
+def show_qr(peer_id):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT name, public_key, privkey, ip FROM peers WHERE id=?", (peer_id,))
