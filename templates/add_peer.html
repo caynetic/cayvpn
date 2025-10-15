@@ -1,34 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Add Peer</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-  <div class="container mt-5">
-    <div class="row justify-content-center">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="mb-0">Add New Peer</h2>
+{% extends "base.html" %}
+
+{% block title %}Add Peer{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="mb-0">Add New Peer</h2>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label for="name" class="form-label">Peer Name</label>
+            <input type="text" class="form-control" id="name" name="name" required>
           </div>
-          <div class="card-body">
-            <form method="post">
-              <div class="mb-3">
-                <label for="name" class="form-label">Peer Name</label>
-                <input type="text" class="form-control" id="name" name="name" required>
-              </div>
-              <button type="submit" class="btn btn-primary">Add Peer</button>
-              <a href="/" class="btn btn-secondary ms-2">Back</a>
-            </form>
-          </div>
-        </div>
+          <button type="submit" class="btn btn-primary">Add Peer</button>
+          <a href="/" class="btn btn-secondary ms-2">Back</a>
+        </form>
       </div>
     </div>
   </div>
-  
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+</div>
+{% endblock %}

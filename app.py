@@ -24,17 +24,22 @@ try:
     SERVER_IP = ip_result.stdout.strip()
     
     if SERVER_IP and SERVER_IP != 'Unknown':
-        # Get region using curl
+        # Get region using curl to ipinfo.io
         try:
-            region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipapi.co/{SERVER_IP}/json/'], capture_output=True, text=True)
+            region_result = subprocess.run(['curl', '-s', '--max-time', '10', f'https://ipinfo.io/{SERVER_IP}/json'], capture_output=True, text=True)
             region_data = region_result.stdout.strip()
             if region_data:
                 import json
                 region_json = json.loads(region_data)
                 city = region_json.get('city', 'Unknown')
-                country = region_json.get('country_name', 'Unknown')
-                if city != 'Unknown' or country != 'Unknown':
+                region = region_json.get('region', 'Unknown')
+                country = region_json.get('country', 'Unknown')
+                if city != 'Unknown':
                     SERVER_REGION = f"{city}, {country}"
+                elif region != 'Unknown':
+                    SERVER_REGION = f"{region}, {country}"
+                elif country != 'Unknown':
+                    SERVER_REGION = country
         except:
             pass  # Region detection failed, keep as Unknown
 except Exception as e:

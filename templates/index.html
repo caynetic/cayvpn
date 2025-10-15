@@ -1,85 +1,76 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WireGuard Peers</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-  <div class="container mt-5">
-    <div class="row">
-      <div class="col-md-12">
-        <h1 class="mb-4">WireGuard Peers</h1>
-        
-        <!-- Server Info -->
-        <div class="card mb-4">
-          <div class="card-header">
-            <h5>Server Information</h5>
-          </div>
-          <div class="card-body">
-            <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
-            <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
-            <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
-            <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
-            <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
-          </div>
-        </div>
-        
-        <!-- Statistics -->
-        <div class="card mb-4">
-          <div class="card-header">
-            <h5>Statistics</h5>
-          </div>
-          <div class="card-body">
-            <p class="mb-1"><strong>Total Peers:</strong> {{ peers|length }}</p>
-            <!-- Add more stats if available -->
-          </div>
-        </div>
-        
-        <div class="d-flex justify-content-between mb-3">
-          <a href="/add" class="btn btn-primary">+ Add Peer</a>
-          <div>
-            <a href="/server" class="btn btn-info me-2">Server Management</a>
-            <a href="/logout" class="btn btn-secondary">Logout</a>
-          </div>
-        </div>
-        
-        <div class="card">
-          <div class="card-header">
-            <h5>Peers List</h5>
-          </div>
-          <div class="card-body">
-            <table class="table table-striped">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Public Key</th>
-                  <th>IP</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for id, name, public_key, privkey, ip in peers %}
-                <tr>
-                  <td>{{ name }}</td>
-                  <td><code>{{ public_key }}</code></td>
-                  <td>{{ ip }}</td>
-                  <td>
-                    <a href="/config/{{ id }}" class="btn btn-sm btn-success">Download Config</a>
-                    <a href="/qr/{{ id }}" class="btn btn-sm btn-info">QR Code</a>
-                    <a href="/remove/{{ id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}WireGuard Peers{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <h1 class="mb-4">WireGuard Peers</h1>
+    
+    <!-- Server Info -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Server Information</h5>
+      </div>
+      <div class="card-body">
+        <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
+        <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
+        <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
+        <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
+        <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
+      </div>
+    </div>
+    
+    <!-- Statistics -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Statistics</h5>
+      </div>
+      <div class="card-body">
+        <p class="mb-1"><strong>Total Peers:</strong> {{ peers|length }}</p>
+        <!-- Add more stats if available -->
+      </div>
+    </div>
+    
+    <div class="d-flex justify-content-between mb-3">
+      <a href="/add" class="btn btn-primary">+ Add Peer</a>
+      <div>
+        <a href="/server" class="btn btn-info me-2">Server Management</a>
+        <a href="/logout" class="btn btn-secondary">Logout</a>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h5>Peers List</h5>
+      </div>
+      <div class="card-body">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Public Key</th>
+              <th>IP</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for id, name, public_key, privkey, ip in peers %}
+            <tr>
+              <td>{{ name }}</td>
+              <td><code>{{ public_key }}</code></td>
+              <td>{{ ip }}</td>
+              <td>
+                <a href="/config/{{ id }}" class="btn btn-sm btn-success">Download Config</a>
+                <a href="/qr/{{ id }}" class="btn btn-sm btn-info">QR Code</a>
+                <a href="/remove/{{ id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-  
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+</div>
+{% endblock %}
