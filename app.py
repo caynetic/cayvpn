@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify
 import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json
 from functools import wraps
 
@@ -210,7 +210,6 @@ def init_db():
     # Set default settings if not exist
     default_settings = [
         ('server_region', SERVER_REGION),
-        ('custom_dns_enabled', '1'),
         ('adguard_ip', '10.8.0.1'),
         ('adguard_port', '53')
     ]
@@ -543,11 +542,9 @@ def settings():
         if action == "update_settings":
             # Update settings
             server_region = request.form.get("server_region", "").strip()
-            custom_dns_enabled = "1" if request.form.get("custom_dns_enabled") else "0"
             
             if server_region:
                 set_setting('server_region', server_region)
-            set_setting('custom_dns_enabled', custom_dns_enabled)
             
             flash("Settings updated successfully!", "success")
             return redirect(url_for("settings"))
@@ -569,11 +566,9 @@ def settings():
     
     # Get current settings
     server_region = get_setting('server_region', SERVER_REGION)
-    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
     
     return render_template("settings.html", 
-                         server_region=server_region,
-                         custom_dns_enabled=custom_dns_enabled)
+                         server_region=server_region)
 
 @app.route("/dns", methods=["GET", "POST"])
 @login_required
@@ -631,7 +626,6 @@ def index():
     peers = get_peers()
     peer_stats = get_peer_stats()
     server_region = get_setting('server_region', SERVER_REGION)
-    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
     
     # Add stats to peers
     peers_with_stats = []
@@ -643,8 +637,7 @@ def index():
     return render_template("index.html", 
                          peers=peers_with_stats, 
                          server_ip=SERVER_IP, 
-                         server_region=server_region,
-                         custom_dns_enabled=custom_dns_enabled)
+                         server_region=server_region)
 
 @app.route("/add", methods=["GET", "POST"])
 @login_required
@@ -747,9 +740,8 @@ def download_config(peer_id):
         f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
     ]
 
-    # Add DNS if custom DNS is enabled
-    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
-    if custom_dns_enabled and WG_CLIENT_DNS:
+    # Always include DNS since it's always enabled
+    if WG_CLIENT_DNS:
         config_lines.append(f"DNS = {WG_CLIENT_DNS}")
 
     config_lines.append("")
@@ -790,9 +782,8 @@ def show_qr(peer_id):
         f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
     ]
 
-    # Add DNS if custom DNS is enabled
-    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
-    if custom_dns_enabled and WG_CLIENT_DNS:
+    # Always include DNS since it's always enabled
+    if WG_CLIENT_DNS:
         qr_lines.append(f"DNS = {WG_CLIENT_DNS}")
 
     qr_lines.append("")
@@ -931,6 +922,47 @@ def test_dns():
         results['external_dns'] = {'success': False, 'output': str(e)}
     
     return render_template("test_dns.html", results=results)
+
+@app.route("/api/peer_stats")
+@login_required
+def api_peer_stats():
+    """API endpoint to get peer statistics as JSON"""
+    peers = get_peers()
+    peer_stats = get_peer_stats()
+    
+    # Build stats data
+    stats_data = []
+    for peer in peers:
+        peer_id, name, pubkey, privkey, ip = peer
+        stats = peer_stats.get(pubkey, {'rx_bytes': 0, 'tx_bytes': 0, 'last_handshake': 0})
+        
+        # Format data usage
+        rx_mb = round(stats['rx_bytes'] / 1024 / 1024, 2) if stats['rx_bytes'] else 0
+        tx_mb = round(stats['tx_bytes'] / 1024 / 1024, 2) if stats['tx_bytes'] else 0
+        
+        # Format last seen
+        last_seen = "Never"
+        if stats['last_handshake'] and stats['last_handshake'] > 0:
+            seconds_ago = stats['last_handshake']
+            if seconds_ago < 60:
+                last_seen = f"{seconds_ago}s ago"
+            elif seconds_ago < 3600:
+                last_seen = f"{round(seconds_ago / 60)}m ago"
+            elif seconds_ago < 86400:
+                last_seen = f"{round(seconds_ago / 3600)}h ago"
+            else:
+                last_seen = f"{round(seconds_ago / 86400)}d ago"
+        
+        stats_data.append({
+            'id': peer_id,
+            'name': name,
+            'ip': ip,
+            'rx_bytes': rx_mb,
+            'tx_bytes': tx_mb,
+            'last_seen': last_seen
+        })
+    
+    return jsonify(stats_data)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8888)
