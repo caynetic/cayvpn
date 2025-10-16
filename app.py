@@ -2,6 +2,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, secrets
 from functools import wraps
 from flask_session import Session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 
@@ -16,6 +19,16 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
 
 # Initialize Flask-Session
 Session(app)
+
+# Initialize Flask-Limiter for rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
 
 # Secure session configuration
 app.config.update(
@@ -686,6 +699,7 @@ def settings():
 
 # === Routes ===
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])  # Strict rate limiting for login attempts
 def login():
     if "logged_in" in session:
         return redirect(url_for("index"))

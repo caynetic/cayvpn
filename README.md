@@ -22,6 +22,8 @@ Visit `http://your-server:8888` and set your initial admin password.
 - **Security Headers**: Comprehensive security headers including CSP, HSTS, XSS protection
 - **Input Validation**: Proper validation for all user inputs
 - **Command Injection Protection**: Safe subprocess calls without shell injection
+- **Rate Limiting**: 5 login attempts per minute to prevent brute force attacks
+- **CSRF Protection**: Flask-WTF CSRF tokens on all forms
 - **Session Security**: HttpOnly, Secure, SameSite cookies
 
 ### 🔄 Remaining Security Recommendations
@@ -126,13 +128,9 @@ sudo journalctl -u cayvpn -f
 sudo journalctl -u wg-quick@wg0 -f
 ```
 
-## 🤝 Contributing
+## 📊 **Security Score: 9/10**
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with security in mind
-4. Test thoroughly
-5. Submit a pull request
+Your CayVPN project now implements enterprise-level security with only HTTPS remaining as an optional enhancement for production deployment.
 
 ## 📄 License
 

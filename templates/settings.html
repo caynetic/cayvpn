@@ -29,6 +29,7 @@
       </div>
       <div class="card-body">
         <form method="post" class="row g-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="action" value="update_settings">
           <div class="col-md-8">
             <label for="server_region" class="form-label">Server Region Details</label>
@@ -59,6 +60,7 @@
         </div>
         {% endif %}
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="action" value="change_password">
           {% if not force_password_change %}
           <div class="mb-3">
