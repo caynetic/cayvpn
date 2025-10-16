@@ -387,13 +387,38 @@ def update_adguard_password(new_password):
             print(f"⚠ AdGuard config not found at {ADGUARD_CONFIG}")
             return False
         
-        # Use sed to replace the password hash in the config file
-        # AdGuard config format: password: $2a$10$...
-        subprocess.run([
-            "sed", "-i.bak",
-            f"s|password: \\$2[ay]\\$[^\"']*|password: {password_hash}|g",
-            ADGUARD_CONFIG
-        ], check=True)
+        # Read the current config file
+        with open(ADGUARD_CONFIG, 'r') as f:
+            config_content = f.read()
+        
+        # Use regex to find and replace the password field
+        # Look for patterns like: password: "$2a$..." or password: $2a$...
+        import re
+        password_pattern = r'(password:\s*)(["\']?)(\$2[ay]\$[^\s"\'"]+)["\']?'
+        match = re.search(password_pattern, config_content)
+        
+        if match:
+            old_password_line = match.group(0)
+            quote_char = match.group(2)  # " or ' if present
+            new_password_line = f'password: "{password_hash}"'
+            config_content = config_content.replace(old_password_line, new_password_line)
+            print(f"✓ Found and replaced password in config")
+        else:
+            # Try a simpler approach - look for any line starting with password:
+            lines = config_content.split('\n')
+            for i, line in enumerate(lines):
+                if line.strip().startswith('password:'):
+                    lines[i] = f'password: "{password_hash}"'
+                    config_content = '\n'.join(lines)
+                    print(f"✓ Replaced password line in config")
+                    break
+            else:
+                print(f"✗ Could not find password field in AdGuard config")
+                return False
+        
+        # Write the updated config back
+        with open(ADGUARD_CONFIG, 'w') as f:
+            f.write(config_content)
         
         # Restart AdGuard Home
         subprocess.run(["systemctl", "restart", "AdGuardHome"], check=True)
@@ -405,6 +430,8 @@ def update_adguard_password(new_password):
         return False
     except Exception as e:
         print(f"✗ Unexpected error updating AdGuard password: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def update_admin_password(new_password):
@@ -1050,10 +1077,11 @@ def api_peer_stats():
         rx_mb = round(stats['rx_bytes'] / 1024 / 1024, 2) if stats['rx_bytes'] else 0
         tx_mb = round(stats['tx_bytes'] / 1024 / 1024, 2) if stats['tx_bytes'] else 0
         
-        # Format last seen
+        # Format last seen - WireGuard latest_handshake is Unix timestamp
         last_seen = "Never"
         if stats['last_handshake'] and stats['last_handshake'] > 0:
-            seconds_ago = stats['last_handshake']
+            import time
+            seconds_ago = int(time.time() - stats['last_handshake'])
             if seconds_ago < 60:
                 last_seen = f"{seconds_ago}s ago"
             elif seconds_ago < 3600:
