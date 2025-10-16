@@ -1,13 +1,20 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
-import os, sqlite3, subprocess, qrcode, io, re, base64
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile
 from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = "ChangeThisNow_!#"  # 🔐 Change this in production
 
 DB_PATH = "wg.db"
+WG_INTERFACE = os.environ.get("WG_INTERFACE", "wg0")
 WG_DIR = "/etc/wireguard"
-WG_CONF = os.path.join(WG_DIR, "wg0.conf")
+WG_CONF = os.path.join(WG_DIR, f"{WG_INTERFACE}.conf")
+WG_PORT = int(os.environ.get("WG_PORT", "43210"))
+WG_SERVER_ADDRESS = os.environ.get("WG_SERVER_ADDRESS", "10.8.0.1/24")
+WG_CLIENT_DNS = os.environ.get("WG_CLIENT_DNS", "10.8.0.1")
+WG_CLIENT_ALLOWED_IPS = os.environ.get("WG_CLIENT_ALLOWED_IPS", "0.0.0.0/0, ::/0")
+WG_PERSISTENT_KEEPALIVE = os.environ.get("WG_PERSISTENT_KEEPALIVE", "25")
+WG_CLIENT_ADDRESS_PREFIX = os.environ.get("WG_CLIENT_ADDRESS_PREFIX", "32")
 SERVER_PRIV = os.path.join(WG_DIR, "server.key")
 SERVER_PUB = os.path.join(WG_DIR, "server.pub")
 
@@ -148,19 +155,23 @@ def write_wg_conf():
         config_lines = [
             "[Interface]",
             f"PrivateKey = {server_priv}",
-            "Address = 10.8.0.1/24",
-            "ListenPort = 43210",
+            f"Address = {WG_SERVER_ADDRESS}",
+            f"ListenPort = {WG_PORT}",
+            "SaveConfig = true",
             ""
         ]
         
         for _, name, pubkey, _, ip in peers:
-            config_lines.extend([
+            peer_block = [
                 "[Peer]",
                 f"# {name}",
                 f"PublicKey = {pubkey}",
-                f"AllowedIPs = {ip}/32",
-                ""
-            ])
+                f"AllowedIPs = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
+            ]
+            if WG_PERSISTENT_KEEPALIVE:
+                peer_block.append(f"PersistentKeepalive = {WG_PERSISTENT_KEEPALIVE}")
+            peer_block.append("")
+            config_lines.extend(peer_block)
         
         config_content = "\n".join(config_lines)
         
@@ -172,7 +183,6 @@ def write_wg_conf():
         except PermissionError:
             print(f"⚠ Permission denied writing to {WG_CONF}, trying with sudo...")
             # Write to temp file first
-            import tempfile
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.conf') as tmp:
                 tmp.write(config_content)
                 tmp_path = tmp.name
@@ -183,12 +193,35 @@ def write_wg_conf():
             print(f"✓ WireGuard config written to {WG_CONF} (with sudo)")
         
         # Try to reload WireGuard
-        result = subprocess.run(["wg-quick", "save", "wg0"], 
-                              stdout=subprocess.DEVNULL, 
-                              stderr=subprocess.PIPE,
-                              text=True)
-        if result.returncode != 0:
-            print(f"⚠ wg-quick save failed: {result.stderr}")
+        sync_success = False
+        import tempfile
+
+        try:
+            strip_proc = subprocess.run(["wg-quick", "strip", WG_INTERFACE],
+                                        capture_output=True,
+                                        text=True,
+                                        check=True)
+            with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
+                tmp.write(strip_proc.stdout)
+                tmp_path = tmp.name
+            subprocess.run(["wg", "syncconf", WG_INTERFACE, tmp_path], check=True)
+            os.unlink(tmp_path)
+            sync_success = True
+            print(f"✓ WireGuard runtime sync completed via wg syncconf")
+        except subprocess.CalledProcessError as err:
+            print(f"⚠ wg syncconf failed: {err}")
+        except FileNotFoundError:
+            print("⚠ wg-quick or wg not available for syncconf")
+        finally:
+            if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+        if not sync_success:
+            try:
+                subprocess.run(["systemctl", "restart", f"wg-quick@{WG_INTERFACE}"], check=True)
+                print(f"✓ WireGuard service restarted to apply config")
+            except subprocess.CalledProcessError as svc_err:
+                print(f"✗ Failed to restart wg-quick@{WG_INTERFACE}: {svc_err}")
         
         return True
         
@@ -199,7 +232,7 @@ def write_wg_conf():
         return False
 
 def import_from_config():
-    """Import peers from existing wg0.conf if database is empty"""
+    """Import peers from existing WireGuard config if database is empty"""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM peers")
@@ -210,8 +243,8 @@ def import_from_config():
 
     with open(WG_CONF) as f:
         content = f.read()
-    peers = re.findall(r"\[Peer\]\n# (.*?)\nPublicKey = (.*?)\nAllowedIPs = (.*?)/32", content)
-    for name, pubkey, ip in peers:
+    peers = re.findall(r"\[Peer\]\n# (.*?)\nPublicKey = (.*?)\nAllowedIPs = ([0-9\.]+)/(\d+)", content)
+    for name, pubkey, ip, _ in peers:
         cur.execute("INSERT OR IGNORE INTO peers (name, public_key, ip) VALUES (?, ?, ?)", (name, pubkey, ip))
     conn.commit()
     conn.close()
@@ -329,16 +362,28 @@ def download_config(peer_id):
 
     name, pubkey, privkey, ip = peer
     server_pub = open(SERVER_PUB).read().strip()
-    config = f"""[Interface]
-PrivateKey = {privkey}
-Address = {ip}/24
-DNS = 1.1.1.1
+    config_lines = [
+        "[Interface]",
+        f"PrivateKey = {privkey}",
+        f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
+    ]
 
-[Peer]
-PublicKey = {server_pub}
-Endpoint = {SERVER_IP}:43210
-AllowedIPs = 0.0.0.0/0, ::/0
-"""
+    if WG_CLIENT_DNS:
+        config_lines.append(f"DNS = {WG_CLIENT_DNS}")
+
+    config_lines.append("")
+    config_lines.extend([
+        "[Peer]",
+        f"PublicKey = {server_pub}",
+        f"Endpoint = {SERVER_IP}:{WG_PORT}",
+        f"AllowedIPs = {WG_CLIENT_ALLOWED_IPS}",
+    ])
+
+    if WG_PERSISTENT_KEEPALIVE:
+        config_lines.append(f"PersistentKeepalive = {WG_PERSISTENT_KEEPALIVE}")
+
+    config_lines.append("")
+    config = "\n".join(config_lines)
     buf = io.BytesIO()
     buf.write(config.encode())
     buf.seek(0)
@@ -358,16 +403,28 @@ def show_qr(peer_id):
 
     name, pubkey, privkey, ip = peer
     server_pub = open(SERVER_PUB).read().strip()
-    qr_text = f"""[Interface]
-PrivateKey = {privkey}
-Address = {ip}/24
-DNS = 1.1.1.1
+    qr_lines = [
+        "[Interface]",
+        f"PrivateKey = {privkey}",
+        f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
+    ]
 
-[Peer]
-PublicKey = {server_pub}
-Endpoint = {SERVER_IP}:43210
-AllowedIPs = 0.0.0.0/0, ::/0
-"""
+    if WG_CLIENT_DNS:
+        qr_lines.append(f"DNS = {WG_CLIENT_DNS}")
+
+    qr_lines.append("")
+    qr_lines.extend([
+        "[Peer]",
+        f"PublicKey = {server_pub}",
+        f"Endpoint = {SERVER_IP}:{WG_PORT}",
+        f"AllowedIPs = {WG_CLIENT_ALLOWED_IPS}",
+    ])
+
+    if WG_PERSISTENT_KEEPALIVE:
+        qr_lines.append(f"PersistentKeepalive = {WG_PERSISTENT_KEEPALIVE}")
+
+    qr_lines.append("")
+    qr_text = "\n".join(qr_lines)
     qr = qrcode.make(qr_text)
     img_io = io.BytesIO()
     qr.save(img_io, 'PNG')
@@ -380,9 +437,9 @@ AllowedIPs = 0.0.0.0/0, ::/0
 def server():
     # Get WG status
     try:
-        wg_status = subprocess.getoutput("wg show wg0")
+        wg_status = subprocess.getoutput(f"wg show {WG_INTERFACE}")
     except:
-        wg_status = "Error: WireGuard not available or wg0 not up"
+        wg_status = f"Error: WireGuard not available or {WG_INTERFACE} not up"
     
     # Get AdGuard status
     try:
@@ -390,13 +447,13 @@ def server():
     except:
         adg_status = "Error: AdGuard Home not installed or service not found"
     
-    return render_template("server.html", wg_status=wg_status, adg_status=adg_status)
+    return render_template("server.html", wg_status=wg_status, adg_status=adg_status, wg_interface=WG_INTERFACE, wg_port=WG_PORT)
 
 @app.route("/restart_wg", methods=["POST"])
 @login_required
 def restart_wg():
     try:
-        subprocess.run(["systemctl", "restart", "wg-quick@wg0"], check=True)
+        subprocess.run(["systemctl", "restart", f"wg-quick@{WG_INTERFACE}"], check=True)
     except:
         pass  # Ignore errors for now
     return redirect(url_for("server"))
