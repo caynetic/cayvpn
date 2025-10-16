@@ -92,20 +92,7 @@
                 {% endif %}
               </td>
               <td>
-                {% if stats.last_handshake and stats.last_handshake > 0 %}
-                  {% set seconds_ago = (stats.last_handshake) %}
-                  {% if seconds_ago < 60 %}
-                    {{ seconds_ago }}s ago
-                  {% elif seconds_ago < 3600 %}
-                    {{ (seconds_ago / 60)|round }}m ago
-                  {% elif seconds_ago < 86400 %}
-                    {{ (seconds_ago / 3600)|round }}h ago
-                  {% else %}
-                    {{ (seconds_ago / 86400)|round }}d ago
-                  {% endif %}
-                {% else %}
-                  <span class="text-muted">Never</span>
-                {% endif %}
+                <span class="text-muted">Loading...</span>
               </td>
               <td>
                 <a href="/config/{{ peer_id }}" class="btn btn-sm btn-success">Download Config</a>
@@ -148,7 +135,7 @@ function updatePeerStats() {
 // Update stats every 30 seconds
 setInterval(updatePeerStats, 30000);
 
-// Initial update after page load
-setTimeout(updatePeerStats, 1000);
+// Initial update immediately on page load
+updatePeerStats();
 </script>
 {% endblock %}
