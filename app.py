@@ -230,6 +230,9 @@ def login_required(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         if "logged_in" in session:
+            # Check if password change is forced
+            if session.get("force_password_change"):
+                return redirect(url_for("settings"))
             return f(*args, **kwargs)
         else:
             return redirect(url_for("login"))
@@ -575,8 +578,9 @@ def settings():
             new_password = request.form.get("new_password", "")
             confirm_password = request.form.get("confirm_password", "")
             
-            # Validate current password
-            if current_password != ADMIN_PASS:
+            # Validate current password (skip if force password change)
+            force_change = session.get("force_password_change", False)
+            if not force_change and current_password != ADMIN_PASS:
                 flash("Current password is incorrect!", "error")
                 return redirect(url_for("settings"))
             
@@ -594,9 +598,17 @@ def settings():
             adguard_success = update_adguard_password(new_password)
             
             if admin_success and adguard_success:
+                # Clear force password change flag
+                session.pop("force_password_change", None)
                 flash("Password updated successfully for both Admin Panel and AdGuard Home!", "success")
+                if force_change:
+                    return redirect(url_for("index"))
             elif admin_success:
+                # Clear force password change flag even if AdGuard fails
+                session.pop("force_password_change", None)
                 flash("Admin Panel password updated. AdGuard Home update failed - please update manually.", "warning")
+                if force_change:
+                    return redirect(url_for("index"))
             else:
                 flash("Password update failed!", "error")
             
@@ -622,7 +634,8 @@ def settings():
     
     return render_template("settings.html", 
                          server_region=server_region,
-                         server_ip=SERVER_IP)
+                         server_ip=SERVER_IP,
+                         force_password_change=session.get("force_password_change", False))
 
 # === Routes ===
 @app.route("/login", methods=["GET", "POST"])
@@ -634,6 +647,11 @@ def login():
         password = request.form["password"]
         if username == ADMIN_USER and password == ADMIN_PASS:
             session["logged_in"] = True
+            # Check if password is still default - force password change
+            if ADMIN_PASS == "password":
+                session["force_password_change"] = True
+                flash("Welcome! For security, please change the default password.", "warning")
+                return redirect(url_for("settings"))
             return redirect(url_for("index"))
         else:
             return render_template("login.html", error="Invalid credentials")
@@ -647,6 +665,10 @@ def logout():
 @app.route("/")
 @login_required
 def index():
+    # Check if password change is forced
+    if session.get("force_password_change"):
+        return redirect(url_for("settings"))
+    
     peers = get_peers()
     peer_stats = get_peer_stats()
     server_region = get_setting('server_region', SERVER_REGION)

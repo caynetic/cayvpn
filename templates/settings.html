@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Settings{% endblock %}
+{% block title %}{% if force_password_change %}Change Password{% else %}Settings{% endif %}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-md-8">
-    <h1 class="mb-4">Server Settings</h1>
+    <h1 class="mb-4">{% if force_password_change %}Change Default Password{% else %}Server Settings{% endif %}</h1>
+    {% if not force_password_change %}
     <a href="/" class="btn btn-secondary mb-3">Back to Dashboard</a>
+    {% endif %}
     
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -20,6 +22,7 @@
       {% endif %}
     {% endwith %}
     
+    {% if not force_password_change %}
     <div class="card">
       <div class="card-header">
         <h5>Server Configuration</h5>
@@ -43,18 +46,26 @@
         </form>
       </div>
     </div>
+    {% endif %}
     
     <div class="card mt-4">
       <div class="card-header">
-        <h5>Change Admin Password</h5>
+        <h5>{% if force_password_change %}Set New Password (Required){% else %}Change Admin Password{% endif %}</h5>
       </div>
       <div class="card-body">
+        {% if force_password_change %}
+        <div class="alert alert-warning">
+          <strong>Security Notice:</strong> You are using the default password. Please set a strong password to secure your VPN management panel.
+        </div>
+        {% endif %}
         <form method="post">
           <input type="hidden" name="action" value="change_password">
+          {% if not force_password_change %}
           <div class="mb-3">
             <label for="current_password" class="form-label">Current Password</label>
             <input type="password" class="form-control" id="current_password" name="current_password" required>
           </div>
+          {% endif %}
           <div class="mb-3">
             <label for="new_password" class="form-label">New Password</label>
             <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
@@ -64,13 +75,14 @@
             <label for="confirm_password" class="form-label">Confirm New Password</label>
             <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
           </div>
-          <button type="submit" class="btn btn-warning">
-            <i class="fas fa-key"></i> Change Password
+          <button type="submit" class="btn btn-{% if force_password_change %}primary{% else %}warning{% endif %}">
+            <i class="fas fa-key"></i> {% if force_password_change %}Set Password{% else %}Change Password{% endif %}
           </button>
         </form>
       </div>
     </div>
     
+    {% if not force_password_change %}
     <div class="card mt-4">
       <div class="card-header">
         <h5>Current Configuration</h5>
@@ -91,6 +103,7 @@
         </dl>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 
