@@ -230,8 +230,8 @@ def login_required(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         if "logged_in" in session:
-            # Check if password change is forced
-            if session.get("force_password_change"):
+            # Check if password change is forced, but allow access to settings
+            if session.get("force_password_change") and request.endpoint != 'settings':
                 return redirect(url_for("settings"))
             return f(*args, **kwargs)
         else:
