@@ -44,17 +44,17 @@ def get_server_info():
     # Try to read from config file first
     if os.path.exists(config_file):
         try:
+            server_ip = None
+            server_region = None
             with open(config_file, 'r') as f:
                 for line in f:
                     line = line.strip()
                     if line.startswith('SERVER_IP='):
-                        ip = line.split('=', 1)[1]
-                        if ip and ip != 'Unknown':
-                            return ip, None  # Return IP, will get region separately
+                        server_ip = line.split('=', 1)[1]
                     elif line.startswith('SERVER_REGION='):
-                        region = line.split('=', 1)[1]
-                        if region and region != 'Unknown':
-                            return None, region  # Return region, will get IP separately
+                        server_region = line.split('=', 1)[1]
+            
+            return server_ip, server_region
         except Exception as e:
             print(f"⚠ Could not read server config file: {e}")
     
