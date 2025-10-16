@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify
-import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, bcrypt
 from functools import wraps
 
 app = Flask(__name__)
@@ -338,15 +338,34 @@ def get_peer_stats():
         stats = {}
         for line in lines[1:]:  # Skip header
             parts = line.split('\t')
-            if len(parts) >= 5:
+            if len(parts) >= 7:
                 pubkey = parts[0]
-                rx_bytes = parts[2]  # received bytes
-                tx_bytes = parts[3]  # transmitted bytes
-                last_handshake = parts[4]
+                # wg show dump format:
+                # 0:public_key 1:preshared_key 2:endpoint 3:allowed_ips 4:latest_handshake 5:transfer_rx 6:transfer_tx 7:persistent_keepalive
+                handshake_time = parts[4]
+                rx_bytes = parts[5]
+                tx_bytes = parts[6]
+                
+                # Convert values, handling '(none)' and invalid formats
+                try:
+                    last_handshake = int(handshake_time) if handshake_time != '(none)' else 0
+                except ValueError:
+                    last_handshake = 0
+                
+                try:
+                    rx = int(rx_bytes) if rx_bytes.isdigit() else 0
+                except ValueError:
+                    rx = 0
+                
+                try:
+                    tx = int(tx_bytes) if tx_bytes.isdigit() else 0
+                except ValueError:
+                    tx = 0
+                
                 stats[pubkey] = {
-                    'rx_bytes': int(rx_bytes),
-                    'tx_bytes': int(tx_bytes),
-                    'last_handshake': int(last_handshake)
+                    'rx_bytes': rx,
+                    'tx_bytes': tx,
+                    'last_handshake': last_handshake
                 }
         return stats
     except Exception as e:
@@ -354,20 +373,14 @@ def get_peer_stats():
         return {}
 
 def update_adguard_password(new_password):
-    """Update AdGuard Home password using htpasswd"""
+    """Update AdGuard Home password using bcrypt"""
     try:
         # Generate bcrypt hash for AdGuard Home
-        # AdGuard Home uses bcrypt hashes
-        result = subprocess.run(
-            ["htpasswd", "-nbB", "admin", new_password],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        # AdGuard Home uses bcrypt hashes with $2a$ prefix
+        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Extract the hash (format is "admin:$2y$...")
-        hash_line = result.stdout.strip()
-        password_hash = hash_line.split(':', 1)[1]
+        # Convert $2b$ to $2a$ for AdGuard compatibility
+        password_hash = password_hash.replace('$2b$', '$2a$')
         
         # Read current AdGuard config
         if not os.path.exists(ADGUARD_CONFIG):
