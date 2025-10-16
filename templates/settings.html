@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h1 class="mb-4">Server Settings</h1>
+    <a href="/" class="btn btn-secondary mb-3">Back to Dashboard</a>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'danger' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    
+    <div class="card">
+      <div class="card-header">
+        <h5>Server Configuration</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" class="row g-3">
+          <input type="hidden" name="action" value="update_settings">
+          <div class="col-md-8">
+            <label for="server_region" class="form-label">Server Region Details</label>
+            <textarea class="form-control" id="server_region" name="server_region" rows="4" placeholder="Enter server location and region information">{{ server_region }}</textarea>
+            <small class="form-text text-muted">This information is displayed on the dashboard and can include location details, datacenter info, etc.</small>
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-info me-2" onclick="autoDetectRegion()">
+              <i class="fas fa-search-location"></i> Auto-Detect
+            </button>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card mt-4">
+      <div class="card-header">
+        <h5>Change Admin Password</h5>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="action" value="change_password">
+          <div class="mb-3">
+            <label for="current_password" class="form-label">Current Password</label>
+            <input type="password" class="form-control" id="current_password" name="current_password" required>
+          </div>
+          <div class="mb-3">
+            <label for="new_password" class="form-label">New Password</label>
+            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
+            <small class="form-text text-muted">Minimum 8 characters. This will update both the Admin Panel and AdGuard Home passwords.</small>
+          </div>
+          <div class="mb-3">
+            <label for="confirm_password" class="form-label">Confirm New Password</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+          </div>
+          <button type="submit" class="btn btn-warning">
+            <i class="fas fa-key"></i> Change Password
+          </button>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card mt-4">
+      <div class="card-header">
+        <h5>Current Configuration</h5>
+      </div>
+      <div class="card-body">
+        <dl class="row">
+          <dt class="col-sm-4">Server IP:</dt>
+          <dd class="col-sm-8">{{ server_ip }}</dd>
+          
+          <dt class="col-sm-4">WireGuard Port:</dt>
+          <dd class="col-sm-8">43210</dd>
+          
+          <dt class="col-sm-4">Interface:</dt>
+          <dd class="col-sm-8">wg0</dd>
+          
+          <dt class="col-sm-4">DNS Server:</dt>
+          <dd class="col-sm-8">{{ server_ip }}:53 (AdGuard Home)</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function autoDetectRegion() {
+  if (confirm('This will attempt to detect your server\'s location based on its public IP address. Continue?')) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'detect_region';
+    
+    form.appendChild(actionInput);
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+</script>
+{% endblock %}

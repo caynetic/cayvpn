@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}WireGuard Peers{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <h1 class="mb-4">WireGuard Peers</h1>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'danger' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    
+    <!-- Server Info -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Server Information</h5>
+      </div>
+        <div class="card-body">
+          <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
+          <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
+          <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
+          <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
+          <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
+        </div>
+    </div>
+    
+    <!-- Statistics -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Statistics</h5>
+      </div>
+      <div class="card-body">
+        <p class="mb-1"><strong>Total Peers:</strong> {{ peers|length }}</p>
+        <!-- Add more stats if available -->
+      </div>
+    </div>
+    
+    <div class="d-flex justify-content-between mb-3">
+      <a href="/add" class="btn btn-primary">+ Add Peer</a>
+      <div>
+        <a href="/settings" class="btn btn-outline-info me-2">Settings</a>
+        <a href="http://{{ server_ip }}:3000" class="btn btn-outline-success me-2" target="_blank">AdGuard Home</a>
+        <a href="/server" class="btn btn-info me-2">Server Management</a>
+        <a href="/logout" class="btn btn-secondary">Logout</a>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h5>Peers List</h5>
+      </div>
+      <div class="card-body">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Public Key</th>
+              <th>IP</th>
+              <th>Data In</th>
+              <th>Data Out</th>
+              <th>Last Seen</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+                        {% for peer_id, name, public_key, privkey, ip, stats in peers %}
+            <tr data-peer-id="{{ peer_id }}">
+              <td>{{ name }}</td>
+              <td><code>{{ public_key[:16] }}...</code></td>
+              <td>{{ ip }}</td>
+              <td>
+                {% if stats.rx_bytes %}
+                  {{ (stats.rx_bytes / 1024 / 1024)|round(2) }} MB
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if stats.tx_bytes %}
+                  {{ (stats.tx_bytes / 1024 / 1024)|round(2) }} MB
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if stats.last_handshake and stats.last_handshake > 0 %}
+                  {% set seconds_ago = (stats.last_handshake) %}
+                  {% if seconds_ago < 60 %}
+                    {{ seconds_ago }}s ago
+                  {% elif seconds_ago < 3600 %}
+                    {{ (seconds_ago / 60)|round }}m ago
+                  {% elif seconds_ago < 86400 %}
+                    {{ (seconds_ago / 3600)|round }}h ago
+                  {% else %}
+                    {{ (seconds_ago / 86400)|round }}d ago
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">Never</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/config/{{ peer_id }}" class="btn btn-sm btn-success">Download Config</a>
+                <a href="/qr/{{ peer_id }}" class="btn btn-sm btn-info">QR Code</a>
+                <a href="/remove/{{ peer_id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updatePeerStats() {
+  fetch('/api/peer_stats')
+    .then(response => response.json())
+    .then(data => {
+      // Update each peer row with new stats
+      data.forEach(peer => {
+        const row = document.querySelector(`tr[data-peer-id="${peer.id}"]`);
+        if (row) {
+          // Update data usage columns (Data In, Data Out, Last Seen)
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 7) {
+            cells[3].innerHTML = peer.rx_bytes > 0 ? `${peer.rx_bytes} MB` : '<span class="text-muted">-</span>';
+            cells[4].innerHTML = peer.tx_bytes > 0 ? `${peer.tx_bytes} MB` : '<span class="text-muted">-</span>';
+            cells[5].innerHTML = peer.last_seen !== 'Never' ? peer.last_seen : '<span class="text-muted">Never</span>';
+          }
+        }
+      });
+    })
+    .catch(error => {
+      console.log('Error updating peer stats:', error);
+    });
+}
+
+// Update stats every 30 seconds
+setInterval(updatePeerStats, 30000);
+
+// Initial update after page load
+setTimeout(updatePeerStats, 1000);
+</script>
+{% endblock %}

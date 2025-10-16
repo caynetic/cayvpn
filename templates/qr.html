@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}QR Code{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="mb-0">QR Code for {{ name }}</h2>
+      </div>
+      <div class="card-body text-center">
+        <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code" class="img-fluid">
+        <br><br>
+        <a href="/" class="btn btn-primary">Back</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}DNS Management{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-10">
+    <h1 class="mb-4">DNS Blocklist Management</h1>
+    <div class="d-flex justify-content-between mb-3">
+      <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="/test_dns" class="btn btn-info">Test DNS</a>
+    </div>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'danger' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    
+    <!-- Add New Blocklist -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Add DNS Blocklist</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" class="row g-3">
+          <input type="hidden" name="action" value="add">
+          <div class="col-md-4">
+            <label for="name" class="form-label">Blocklist Name</label>
+            <input type="text" class="form-control" id="name" name="name" required placeholder="e.g., AdGuard Ads">
+          </div>
+          <div class="col-md-6">
+            <label for="url" class="form-label">Blocklist URL</label>
+            <input type="url" class="form-control" id="url" name="url" required placeholder="https://example.com/blocklist.txt">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Add</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Current Blocklists -->
+    <div class="card">
+      <div class="card-header">
+        <h5>Current DNS Blocklists</h5>
+      </div>
+      <div class="card-body">
+        {% if blocklists %}
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for blocklist in blocklists %}
+              <tr>
+                <td>{{ blocklist[1] }}</td>
+                <td><code>{{ blocklist[2] }}</code></td>
+                <td>
+                  <span class="badge bg-{{ 'success' if blocklist[3] else 'secondary' }}">
+                    {{ 'Enabled' if blocklist[3] else 'Disabled' }}
+                  </span>
+                </td>
+                <td>
+                  <form method="post" class="d-inline">
+                    <input type="hidden" name="action" value="toggle">
+                    <input type="hidden" name="blocklist_id" value="{{ blocklist[0] }}">
+                    <button type="submit" class="btn btn-sm btn-outline-{{ 'warning' if blocklist[3] else 'success' }}">
+                      {{ 'Disable' if blocklist[3] else 'Enable' }}
+                    </button>
+                  </form>
+                  <form method="post" class="d-inline ms-2">
+                    <input type="hidden" name="action" value="remove">
+                    <input type="hidden" name="blocklist_id" value="{{ blocklist[0] }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                            onclick="return confirm('Are you sure you want to remove this blocklist?')">
+                      Remove
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+          <strong>No DNS blocklists configured.</strong> Add some blocklists above to start filtering DNS queries.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Popular Blocklists -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <h5>Popular DNS Blocklists</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">Click to quickly add popular DNS blocklists:</p>
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Ad Blocking</h6>
+            <ul class="list-unstyled">
+              <li><a href="#" onclick="addBlocklist('AdGuard Ads', 'https://filters.adtidy.org/extension/chromium/filters/11.txt')" class="text-decoration-none">AdGuard Ads</a></li>
+              <li><a href="#" onclick="addBlocklist('EasyList', 'https://easylist.to/easylist/easylist.txt')" class="text-decoration-none">EasyList</a></li>
+              <li><a href="#" onclick="addBlocklist('uBlock Origin', 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt')" class="text-decoration-none">uBlock Origin</a></li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h6>Privacy & Tracking</h6>
+            <ul class="list-unstyled">
+              <li><a href="#" onclick="addBlocklist('AdGuard Tracking', 'https://filters.adtidy.org/extension/chromium/filters/3.txt')" class="text-decoration-none">AdGuard Tracking</a></li>
+              <li><a href="#" onclick="addBlocklist('EasyPrivacy', 'https://easylist.to/easylist/easyprivacy.txt')" class="text-decoration-none">EasyPrivacy</a></li>
+              <li><a href="#" onclick="addBlocklist('Fanboy Annoyances', 'https://fanboy.co.nz/fanboy-annoyance.txt')" class="text-decoration-none">Fanboy Annoyances</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function addBlocklist(name, url) {
+    document.getElementById('name').value = name;
+    document.getElementById('url').value = url;
+    // Scroll to the form
+    document.querySelector('.card-header h5').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+{% endblock %}

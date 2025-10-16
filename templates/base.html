@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WireGuard Manager{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container mt-5">
+    <div class="row">
+      <div class="col-md-12 text-center mb-4">
+        <a href="https://caynetic.com" target="_blank" rel="noopener noreferrer">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="img-fluid" style="max-height: 100px;">
+        </a>
+      </div>
+    </div>
+    {% block content %}{% endblock %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
