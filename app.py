@@ -32,7 +32,7 @@ SERVER_PUB = os.path.join(WG_DIR, "server.pub")
 ADGUARD_CONFIG = "/opt/AdGuardHome/AdGuardHome.yaml"
 
 ADMIN_USER = "admin"
-ADMIN_PASS = "password"  # 🔐 Change this too!
+ADMIN_PASS = "ChangeThisNow_!#"  # 🔐 Change this in production
 
 # Detect server IP and region
 SERVER_IP = "Unknown"
@@ -648,7 +648,7 @@ def login():
         if username == ADMIN_USER and password == ADMIN_PASS:
             session["logged_in"] = True
             # Check if password is still default - force password change
-            if ADMIN_PASS == "password":
+            if ADMIN_PASS == "ChangeThisNow_!#":
                 session["force_password_change"] = True
                 flash("Welcome! For security, please change the default password.", "warning")
                 return redirect(url_for("settings"))

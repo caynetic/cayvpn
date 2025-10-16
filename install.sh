@@ -306,6 +306,7 @@ systemctl enable cayvpn
 # ---------- Firewall Rules ----------
 echo "🔥 Setting up firewall rules..."
 iptables -C INPUT -p tcp --dport 8888 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8888 -j ACCEPT
+iptables -C INPUT -p udp --dport ${WG_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p udp --dport ${WG_PORT} -j ACCEPT
 iptables -C INPUT -i lo -p udp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p udp --dport 53 -j ACCEPT
 iptables -C INPUT -i lo -p tcp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p tcp --dport 53 -j ACCEPT
 iptables -C INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT
@@ -326,8 +327,6 @@ echo "🎉 CayVPN Installation Complete!"
 echo "================================="
 echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888"
 echo "🔐 Default Login: admin / ${ADMIN_PASS}"
-echo "📊 AdGuard Home UI: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
-echo "🔑 AdGuard Admin: ${ADMIN_USER} / ${ADMIN_PASS}"
 echo ""
 echo "📡 WireGuard: ${WG_IFACE} UDP ${WG_PORT} (${WG_SUBNET_V4})"
 echo "🛡️ DNS Server: ${WG_GW_IP}:53"
