@@ -400,30 +400,25 @@ def update_adguard_password(new_password):
         with open(ADGUARD_CONFIG, 'r') as f:
             config_content = f.read()
         
+        print(f"✓ Read AdGuard config ({len(config_content)} chars)")
+        
         # Use regex to find and replace the password field
-        # Look for patterns like: password: "$2y$..." or password: $2y$...
+        # Look for patterns like: password: "$2y$..." or password: $2y$... or password: ""
         import re
-        password_pattern = r'(password:\s*)(["\']?)(\$2[ayby]\$[^\s"\'"]+)["\']?'
+        password_pattern = r'(password:\s*)(["\']?)(\$2[ayby]\$[^\s"\'"]*|[^"\']*)["\']?'
         match = re.search(password_pattern, config_content)
         
         if match:
             old_password_line = match.group(0)
-            quote_char = match.group(2)  # " or ' if present
             new_password_line = f'password: "{password_hash}"'
             config_content = config_content.replace(old_password_line, new_password_line)
-            print(f"✓ Found and replaced password in config")
+            print(f"✓ Found and replaced password in config (was: {old_password_line.strip()})")
         else:
-            # Try a simpler approach - look for any line starting with password:
-            lines = config_content.split('\n')
-            for i, line in enumerate(lines):
-                if line.strip().startswith('password:'):
-                    lines[i] = f'password: "{password_hash}"'
-                    config_content = '\n'.join(lines)
-                    print(f"✓ Replaced password line in config")
-                    break
-            else:
-                print(f"✗ Could not find password field in AdGuard config")
-                return False
+            print(f"✗ Could not find password field in AdGuard config")
+            # Debug: show lines containing 'password'
+            password_lines = [line for line in config_content.split('\n') if 'password' in line.lower()]
+            print(f"Debug - password-related lines: {password_lines}")
+            return False
         
         # Write the updated config back
         with open(ADGUARD_CONFIG, 'w') as f:
