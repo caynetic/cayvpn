@@ -29,6 +29,7 @@ WG_POSTUP = os.environ.get("WG_POSTUP", "")
 WG_POSTDOWN = os.environ.get("WG_POSTDOWN", "")
 SERVER_PRIV = os.path.join(WG_DIR, "server.key")
 SERVER_PUB = os.path.join(WG_DIR, "server.pub")
+ADGUARD_CONFIG = "/opt/AdGuardHome/AdGuardHome.yaml"
 
 ADMIN_USER = "admin"
 ADMIN_PASS = "password"  # 🔐 Change this too!
@@ -279,6 +280,17 @@ def set_setting(key, value):
     conn.commit()
     conn.close()
 
+def load_admin_password():
+    """Load admin password from settings on startup"""
+    global ADMIN_PASS
+    stored_pass = get_setting('admin_password')
+    if stored_pass:
+        ADMIN_PASS = stored_pass
+        print("✓ Admin password loaded from database")
+
+# Load admin password from database if exists
+load_admin_password()
+
 def get_dns_blocklists():
     """Get all DNS blocklists"""
     conn = sqlite3.connect(DB_PATH)
@@ -340,6 +352,57 @@ def get_peer_stats():
     except Exception as e:
         print(f"Error getting peer stats: {e}")
         return {}
+
+def update_adguard_password(new_password):
+    """Update AdGuard Home password using htpasswd"""
+    try:
+        # Generate bcrypt hash for AdGuard Home
+        # AdGuard Home uses bcrypt hashes
+        result = subprocess.run(
+            ["htpasswd", "-nbB", "admin", new_password],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Extract the hash (format is "admin:$2y$...")
+        hash_line = result.stdout.strip()
+        password_hash = hash_line.split(':', 1)[1]
+        
+        # Read current AdGuard config
+        if not os.path.exists(ADGUARD_CONFIG):
+            print(f"⚠ AdGuard config not found at {ADGUARD_CONFIG}")
+            return False
+        
+        # Use sed to replace the password hash in the config file
+        # AdGuard config format: password: $2a$10$...
+        subprocess.run([
+            "sed", "-i.bak",
+            f"s|password: \\$2[ay]\\$[^\"']*|password: {password_hash}|g",
+            ADGUARD_CONFIG
+        ], check=True)
+        
+        # Restart AdGuard Home
+        subprocess.run(["systemctl", "restart", "AdGuardHome"], check=True)
+        print("✓ AdGuard Home password updated")
+        return True
+            
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Error updating AdGuard password: {e}")
+        return False
+    except Exception as e:
+        print(f"✗ Unexpected error updating AdGuard password: {e}")
+        return False
+
+def update_admin_password(new_password):
+    """Update admin panel password"""
+    global ADMIN_PASS
+    ADMIN_PASS = new_password
+    
+    # Store in settings database for persistence
+    set_setting('admin_password', new_password)
+    print("✓ Admin panel password updated")
+    return True
 
 def write_wg_conf():
     """Write WireGuard configuration file and apply changes instantly"""
@@ -549,6 +612,39 @@ def settings():
             flash("Settings updated successfully!", "success")
             return redirect(url_for("settings"))
         
+        elif action == "change_password":
+            # Change admin password
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            
+            # Validate current password
+            if current_password != ADMIN_PASS:
+                flash("Current password is incorrect!", "error")
+                return redirect(url_for("settings"))
+            
+            # Validate new password
+            if len(new_password) < 8:
+                flash("New password must be at least 8 characters!", "error")
+                return redirect(url_for("settings"))
+            
+            if new_password != confirm_password:
+                flash("New passwords do not match!", "error")
+                return redirect(url_for("settings"))
+            
+            # Update both admin panel and AdGuard Home passwords
+            admin_success = update_admin_password(new_password)
+            adguard_success = update_adguard_password(new_password)
+            
+            if admin_success and adguard_success:
+                flash("Password updated successfully for both Admin Panel and AdGuard Home!", "success")
+            elif admin_success:
+                flash("Admin Panel password updated. AdGuard Home update failed - please update manually.", "warning")
+            else:
+                flash("Password update failed!", "error")
+            
+            return redirect(url_for("settings"))
+        
         elif action == "detect_region":
             # Auto-detect region
             try:
@@ -568,7 +664,8 @@ def settings():
     server_region = get_setting('server_region', SERVER_REGION)
     
     return render_template("settings.html", 
-                         server_region=server_region)
+                         server_region=server_region,
+                         server_ip=SERVER_IP)
 
 @app.route("/dns", methods=["GET", "POST"])
 @login_required

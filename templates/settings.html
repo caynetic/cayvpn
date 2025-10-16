@@ -46,6 +46,33 @@
     
     <div class="card mt-4">
       <div class="card-header">
+        <h5>Change Admin Password</h5>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="action" value="change_password">
+          <div class="mb-3">
+            <label for="current_password" class="form-label">Current Password</label>
+            <input type="password" class="form-control" id="current_password" name="current_password" required>
+          </div>
+          <div class="mb-3">
+            <label for="new_password" class="form-label">New Password</label>
+            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
+            <small class="form-text text-muted">Minimum 8 characters. This will update both the Admin Panel and AdGuard Home passwords.</small>
+          </div>
+          <div class="mb-3">
+            <label for="confirm_password" class="form-label">Confirm New Password</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+          </div>
+          <button type="submit" class="btn btn-warning">
+            <i class="fas fa-key"></i> Change Password
+          </button>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card mt-4">
+      <div class="card-header">
         <h5>Current Configuration</h5>
       </div>
       <div class="card-body">
