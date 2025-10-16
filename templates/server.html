@@ -20,6 +20,7 @@
           <small class="text-muted">Listening on UDP port {{ wg_port }}</small>
         </div>
         <form method="post" action="/restart_wg" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" class="btn btn-warning btn-sm">Restart WG</button>
         </form>
       </div>
@@ -39,12 +40,12 @@
         <h5>AdGuard Home Status</h5>
         <div>
           <form method="post" action="/start_adg" class="d-inline me-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="btn btn-success btn-sm">Start</button>
           </form>
-          <form method="post" action="/stop_adg" class="d-inline me-2">
-            <button type="submit" class="btn btn-danger btn-sm">Stop</button>
-          </form>
+
           <form method="post" action="/restart_adg" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="btn btn-warning btn-sm">Restart</button>
           </form>
         </div>

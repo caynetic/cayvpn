@@ -132,3 +132,7 @@ dmypy.json
 wg_keys/
 *.db
 wg.db
+
+# Flask-Session storage
+sessions/
+flask_session/
