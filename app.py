@@ -5,6 +5,16 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = "ChangeThisNow_!#"  # 🔐 Change this in production
 
+# WireGuard Configuration (can be overridden with environment variables)
+# WG_INTERFACE=wg0                    # Interface name
+# WG_PORT=43210                       # UDP port
+# WG_SERVER_ADDRESS=10.8.0.1/24       # Server IP/mask
+# WG_CLIENT_DNS=10.8.0.1              # DNS server for clients (AdGuard)
+# WG_CLIENT_ALLOWED_IPS=0.0.0.0/0, ::/0  # IPs to route through VPN
+# WG_PERSISTENT_KEEPALIVE=25          # Keepalive interval
+# WG_POSTUP=""                        # PostUp command for iptables
+# WG_POSTDOWN=""                      # PostDown command for iptables
+
 DB_PATH = "wg.db"
 WG_INTERFACE = os.environ.get("WG_INTERFACE", "wg0")
 WG_DIR = "/etc/wireguard"
@@ -15,6 +25,8 @@ WG_CLIENT_DNS = os.environ.get("WG_CLIENT_DNS", "10.8.0.1")
 WG_CLIENT_ALLOWED_IPS = os.environ.get("WG_CLIENT_ALLOWED_IPS", "0.0.0.0/0, ::/0")
 WG_PERSISTENT_KEEPALIVE = os.environ.get("WG_PERSISTENT_KEEPALIVE", "25")
 WG_CLIENT_ADDRESS_PREFIX = os.environ.get("WG_CLIENT_ADDRESS_PREFIX", "32")
+WG_POSTUP = os.environ.get("WG_POSTUP", "")
+WG_POSTDOWN = os.environ.get("WG_POSTDOWN", "")
 SERVER_PRIV = os.path.join(WG_DIR, "server.key")
 SERVER_PUB = os.path.join(WG_DIR, "server.pub")
 
@@ -158,8 +170,15 @@ def write_wg_conf():
             f"Address = {WG_SERVER_ADDRESS}",
             f"ListenPort = {WG_PORT}",
             "SaveConfig = true",
-            ""
         ]
+        
+        # Add PostUp/PostDown if configured
+        if WG_POSTUP:
+            config_lines.append(f"PostUp = {WG_POSTUP}")
+        if WG_POSTDOWN:
+            config_lines.append(f"PostDown = {WG_POSTDOWN}")
+        
+        config_lines.append("")
         
         for _, name, pubkey, _, ip in peers:
             peer_block = [
@@ -194,27 +213,39 @@ def write_wg_conf():
         
         # Try to reload WireGuard
         sync_success = False
-        import tempfile
-
+        
+        # Check if interface exists
         try:
-            strip_proc = subprocess.run(["wg-quick", "strip", WG_INTERFACE],
-                                        capture_output=True,
-                                        text=True,
-                                        check=True)
-            with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
-                tmp.write(strip_proc.stdout)
-                tmp_path = tmp.name
-            subprocess.run(["wg", "syncconf", WG_INTERFACE, tmp_path], check=True)
-            os.unlink(tmp_path)
-            sync_success = True
-            print(f"✓ WireGuard runtime sync completed via wg syncconf")
-        except subprocess.CalledProcessError as err:
-            print(f"⚠ wg syncconf failed: {err}")
-        except FileNotFoundError:
-            print("⚠ wg-quick or wg not available for syncconf")
-        finally:
-            if 'tmp_path' in locals() and os.path.exists(tmp_path):
+            result = subprocess.run(["ip", "link", "show", WG_INTERFACE], 
+                                  capture_output=True, text=True)
+            interface_exists = result.returncode == 0
+        except:
+            interface_exists = False
+        
+        if interface_exists:
+            print(f"✓ Interface {WG_INTERFACE} exists, attempting config sync")
+            
+            try:
+                strip_proc = subprocess.run(["wg-quick", "strip", WG_INTERFACE],
+                                            capture_output=True,
+                                            text=True,
+                                            check=True)
+                with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
+                    tmp.write(strip_proc.stdout)
+                    tmp_path = tmp.name
+                subprocess.run(["wg", "syncconf", WG_INTERFACE, tmp_path], check=True)
                 os.unlink(tmp_path)
+                sync_success = True
+                print(f"✓ WireGuard runtime sync completed via wg syncconf")
+            except subprocess.CalledProcessError as err:
+                print(f"⚠ wg syncconf failed: {err}")
+            except FileNotFoundError:
+                print("⚠ wg-quick or wg not available for syncconf")
+            finally:
+                if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+        else:
+            print(f"⚠ Interface {WG_INTERFACE} does not exist, will try service restart")
 
         if not sync_success:
             try:
@@ -222,6 +253,7 @@ def write_wg_conf():
                 print(f"✓ WireGuard service restarted to apply config")
             except subprocess.CalledProcessError as svc_err:
                 print(f"✗ Failed to restart wg-quick@{WG_INTERFACE}: {svc_err}")
+                return False
         
         return True
         
@@ -325,10 +357,18 @@ def add_peer():
             
             print(f"✓ Peer '{name}' added to database (ID: {peer_id})")
 
-            write_wg_conf()
-            print(f"✓ WireGuard config updated")
-            
-            return redirect(url_for("index"))
+            if write_wg_conf():
+                print(f"✓ WireGuard config updated successfully")
+                return redirect(url_for("index"))
+            else:
+                # Config update failed, remove the peer from DB
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("DELETE FROM peers WHERE id=?", (peer_id,))
+                conn.commit()
+                conn.close()
+                print(f"✗ Config update failed, removed peer from database")
+                return render_template("add_peer.html", error="Failed to update WireGuard configuration")
         except Exception as e:
             print(f"✗ Error adding peer: {type(e).__name__}: {e}")
             import traceback
@@ -438,8 +478,16 @@ def server():
     # Get WG status
     try:
         wg_status = subprocess.getoutput(f"wg show {WG_INTERFACE}")
+        if not wg_status.strip():
+            wg_status = f"Interface {WG_INTERFACE} appears to be down or not configured"
     except:
         wg_status = f"Error: WireGuard not available or {WG_INTERFACE} not up"
+    
+    # Get interface info
+    try:
+        ip_info = subprocess.getoutput(f"ip addr show {WG_INTERFACE}")
+    except:
+        ip_info = f"Could not get IP info for {WG_INTERFACE}"
     
     # Get AdGuard status
     try:
@@ -447,7 +495,20 @@ def server():
     except:
         adg_status = "Error: AdGuard Home not installed or service not found"
     
-    return render_template("server.html", wg_status=wg_status, adg_status=adg_status, wg_interface=WG_INTERFACE, wg_port=WG_PORT)
+    # Get current config
+    try:
+        with open(WG_CONF, 'r') as f:
+            wg_config = f.read()
+    except:
+        wg_config = f"Could not read config file {WG_CONF}"
+    
+    return render_template("server.html", 
+                         wg_status=wg_status, 
+                         adg_status=adg_status, 
+                         wg_interface=WG_INTERFACE, 
+                         wg_port=WG_PORT,
+                         ip_info=ip_info,
+                         wg_config=wg_config)
 
 @app.route("/restart_wg", methods=["POST"])
 @login_required
@@ -476,14 +537,27 @@ def start_adg():
         pass
     return redirect(url_for("server"))
 
-@app.route("/stop_adg", methods=["POST"])
+@app.route("/test_dns")
 @login_required
-def stop_adg():
+def test_dns():
+    """Test DNS connectivity to AdGuard"""
     try:
-        subprocess.run(["systemctl", "stop", "AdGuardHome"], check=True)
-    except:
-        pass
-    return redirect(url_for("server"))
+        # Test local DNS
+        result = subprocess.run(["dig", "@10.8.0.1", "google.com", "+short"], 
+                              capture_output=True, text=True, timeout=5)
+        local_dns = result.stdout.strip() if result.returncode == 0 else f"Failed: {result.stderr}"
+    except Exception as e:
+        local_dns = f"Error: {e}"
+    
+    try:
+        # Test if AdGuard is listening
+        result = subprocess.run(["ss", "-tuln", "|", "grep", ":53"], 
+                              shell=True, capture_output=True, text=True, timeout=5)
+        dns_ports = result.stdout.strip() if result.returncode == 0 else f"Failed: {result.stderr}"
+    except Exception as e:
+        dns_ports = f"Error: {e}"
+    
+    return render_template("test_dns.html", local_dns=local_dns, dns_ports=dns_ports)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8888)

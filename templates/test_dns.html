@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}DNS Test{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <h1 class="mb-4">DNS Connectivity Test</h1>
+    <a href="/server" class="btn btn-secondary mb-3">Back to Server Management</a>
+    
+    <!-- DNS Test Results -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>DNS Test Results</h5>
+      </div>
+      <div class="card-body">
+        <h6>Local DNS Query (to 10.8.0.1):</h6>
+        <pre>{{ local_dns }}</pre>
+        
+        <h6>DNS Ports Listening:</h6>
+        <pre>{{ dns_ports }}</pre>
+        
+        <div class="alert alert-info">
+          <strong>Troubleshooting:</strong>
+          <ul>
+            <li>If local DNS query fails, AdGuard Home may not be running or not listening on 10.8.0.1:53</li>
+            <li>Check that AdGuard Home service is active: <code>systemctl status AdGuardHome</code></li>
+            <li>Verify iptables rules allow DNS traffic: <code>iptables -L | grep 53</code></li>
+            <li>Ensure WireGuard interface is up: <code>ip addr show wg0</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
