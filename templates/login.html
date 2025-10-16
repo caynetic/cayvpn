@@ -7,22 +7,28 @@
   <div class="col-md-6">
     <div class="card">
       <div class="card-header">
-        <h2 class="mb-0">WireGuard Manager Login</h2>
+        <h2 class="mb-0">{% if first_time %}Initial Setup - Set Admin Password{% else %}WireGuard Manager Login{% endif %}</h2>
       </div>
       <div class="card-body">
+        {% if first_time %}
+        <div class="alert alert-info">
+          <strong>Welcome!</strong> This appears to be your first time setting up CayVPN. Please set an initial admin password.
+        </div>
+        {% endif %}
         {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
         <form method="post">
           <div class="mb-3">
             <label for="username" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" name="username" required>
+            <input type="text" class="form-control" id="username" name="username" value="admin" readonly>
           </div>
           <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" name="password" required>
+            <label for="password" class="form-label">{% if first_time %}Set Initial Password{% else %}Password{% endif %}</label>
+            <input type="password" class="form-control" id="password" name="password" required minlength="8">
+            <small class="form-text text-muted">Minimum 8 characters required</small>
           </div>
-          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="submit" class="btn btn-primary">{% if first_time %}Set Password{% else %}Login{% endif %}</button>
         </form>
       </div>
     </div>

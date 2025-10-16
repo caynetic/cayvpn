@@ -1,9 +1,47 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify
-import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, secrets
 from functools import wraps
+from flask_session import Session
 
 app = Flask(__name__)
-app.secret_key = "ChangeThisNow_!#"  # 🔐 Change this in production
+
+# Generate secure random secret key if not provided via environment
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+
+# Configure Flask-Session for secure server-side session storage
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sessions')
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+
+# Initialize Flask-Session
+Session(app)
+
+# Secure session configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=False,  # Set to True when using HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=3600,  # 1 hour
+)
+
+# Security headers
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    # Content Security Policy - allow inline styles/scripts for Bootstrap but restrict others
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data:; "
+        "font-src 'self' https://cdn.jsdelivr.net;"
+    )
+    return response
 
 # WireGuard Configuration (can be overridden with environment variables)
 # WG_INTERFACE=wg0                    # Interface name
@@ -32,7 +70,7 @@ SERVER_PUB = os.path.join(WG_DIR, "server.pub")
 ADGUARD_CONFIG = "/opt/AdGuardHome/AdGuardHome.yaml"
 
 ADMIN_USER = "admin"
-ADMIN_PASS = "ChangeThisNow_!#"  # 🔐 Change this in production
+# Admin password is loaded from database only - no hardcoded default
 
 # Detect server IP and region
 SERVER_IP = "Unknown"
@@ -216,23 +254,21 @@ init_db()
 if not os.path.exists(WG_DIR):
     os.makedirs(WG_DIR)
 if not os.path.exists(SERVER_PRIV):
-    server_priv = subprocess.getoutput("wg genkey")
+    priv_key_result = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True)
     with open(SERVER_PRIV, "w") as f:
-        f.write(server_priv)
+        f.write(priv_key_result.stdout.strip())
 if not os.path.exists(SERVER_PUB):
-    server_priv = open(SERVER_PRIV).read().strip()
-    server_pub = subprocess.getoutput(f"echo {server_priv} | wg pubkey")
+    with open(SERVER_PRIV) as f:
+        server_priv = f.read().strip()
+    pub_key_result = subprocess.run(["wg", "pubkey"], input=server_priv, capture_output=True, text=True, check=True)
     with open(SERVER_PUB, "w") as f:
-        f.write(server_pub)
+        f.write(pub_key_result.stdout.strip())
 
 # === Auth decorator ===
 def login_required(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         if "logged_in" in session:
-            # Check if password change is forced, but allow access to settings
-            if session.get("force_password_change") and request.endpoint != 'settings':
-                return redirect(url_for("settings"))
             return f(*args, **kwargs)
         else:
             return redirect(url_for("login"))
@@ -279,6 +315,12 @@ def load_admin_password():
     if stored_pass:
         ADMIN_PASS = stored_pass
         print("✓ Admin password loaded from database")
+        return True
+    else:
+        # No password set - this is first run
+        ADMIN_PASS = None
+        print("⚠ No admin password set - first time setup required")
+        return False
 
 # Load admin password from database if exists
 load_admin_password()
@@ -566,6 +608,11 @@ def settings():
             # Update settings
             server_region = request.form.get("server_region", "").strip()
             
+            # Input validation for server region
+            if len(server_region) > 500:
+                flash("Server region description must be 500 characters or less", "error")
+                return redirect(url_for("settings"))
+            
             if server_region:
                 set_setting('server_region', server_region)
             
@@ -645,16 +692,28 @@ def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
+        
+        # Check if this is first time setup (no password set)
+        if ADMIN_PASS is None:
+            if username == ADMIN_USER and len(password) >= 8:
+                # Set initial password
+                update_admin_password(password)
+                session["logged_in"] = True
+                flash("Welcome! Admin password has been set.", "success")
+                return redirect(url_for("index"))
+            else:
+                return render_template("login.html", error="Please set an initial password (minimum 8 characters)")
+        
+        # Normal login
         if username == ADMIN_USER and password == ADMIN_PASS:
             session["logged_in"] = True
-            # Check if password is still default - force password change
-            if ADMIN_PASS == "ChangeThisNow_!#":
-                session["force_password_change"] = True
-                flash("Welcome! For security, please change the default password.", "warning")
-                return redirect(url_for("settings"))
             return redirect(url_for("index"))
         else:
             return render_template("login.html", error="Invalid credentials")
+    
+    # Show different message for first time setup
+    if ADMIN_PASS is None:
+        return render_template("login.html", first_time=True)
     return render_template("login.html")
 
 @app.route("/logout")
@@ -691,15 +750,36 @@ def add_peer():
     if request.method == "POST":
         try:
             name = request.form.get("name", "").strip()
+            
+            # Input validation
             if not name:
                 return render_template("add_peer.html", error="Peer name is required")
+            
+            if len(name) > 50:
+                return render_template("add_peer.html", error="Peer name must be 50 characters or less")
+            
+            # Allow only alphanumeric characters, spaces, hyphens, and underscores
+            if not re.match(r'^[a-zA-Z0-9\s\-_]+$', name):
+                return render_template("add_peer.html", error="Peer name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed")
+            
+            # Check for duplicate names
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM peers WHERE name = ?", (name,))
+            if cur.fetchone():
+                conn.close()
+                return render_template("add_peer.html", error=f"Peer name '{name}' already exists")
+            conn.close()
             
             ip = get_next_ip()
             print(f"Adding new peer '{name}' with IP {ip}")
             
-            # Generate keys
-            priv_key = subprocess.getoutput("wg genkey")
-            pub_key = subprocess.getoutput(f"echo '{priv_key}' | wg pubkey")
+            # Generate keys using safe subprocess calls
+            priv_key_result = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True)
+            priv_key = priv_key_result.stdout.strip()
+            
+            pub_key_result = subprocess.run(["wg", "pubkey"], input=priv_key, capture_output=True, text=True, check=True)
+            pub_key = pub_key_result.stdout.strip()
             
             print(f"Generated keys for {name}")
 
@@ -936,10 +1016,10 @@ def test_dns():
     
     try:
         # Test if AdGuard is listening
-        result = subprocess.run(["ss", "-tuln", "|", "grep", ":53"], 
-                              shell=True, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["ss", "-tuln"], capture_output=True, text=True, timeout=5)
+        adguard_listening = '10.8.0.1:53' in result.stdout if result.returncode == 0 else False
         results['dns_ports'] = {
-            'success': result.returncode == 0 and '10.8.0.1:53' in result.stdout,
+            'success': adguard_listening,
             'output': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
         }
     except Exception as e:

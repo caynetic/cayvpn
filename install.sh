@@ -279,6 +279,10 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Create sessions directory for secure session storage
+mkdir -p sessions
+chmod 700 sessions
+
 # Create systemd service for CayVPN
 cat >/etc/systemd/system/cayvpn.service <<EOF
 [Unit]
@@ -326,7 +330,7 @@ echo ""
 echo "🎉 CayVPN Installation Complete!"
 echo "================================="
 echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888"
-echo "🔐 Default Login: admin / ${ADMIN_PASS}"
+echo "🔐 Initial Setup: Visit the web interface to set your admin password"
 echo ""
 echo "📡 WireGuard: ${WG_IFACE} UDP ${WG_PORT} (${WG_SUBNET_V4})"
 echo "🛡️ DNS Server: ${WG_GW_IP}:53"
@@ -339,9 +343,10 @@ echo "  - CayVPN: $(systemctl is-active cayvpn)"
 echo "  - Cloudflared: $(systemctl is-active cloudflared-dns)"
 echo ""
 echo "📝 Next Steps:"
-echo "  1. Change the default password in the web interface"
+echo "  1. Visit http://${PUB_IP}:8888 and set your initial admin password"
 echo "  2. Add WireGuard peers through the CayVPN dashboard"
 echo "  3. Configure port forwarding for UDP ${WG_PORT}"
+echo "  4. Consider enabling HTTPS (see README for instructions)"
 echo ""
 echo "🛠️ Management Commands:"
 echo "  sudo systemctl status cayvpn    # Check CayVPN status"
