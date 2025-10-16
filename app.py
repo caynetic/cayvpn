@@ -197,17 +197,6 @@ def init_db():
         )
     """)
     
-    # Create dns_blocklists table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS dns_blocklists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            url TEXT NOT NULL,
-            enabled BOOLEAN DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
     # Set default settings if not exist
     default_settings = [
         ('server_region', SERVER_REGION),
@@ -291,41 +280,6 @@ def load_admin_password():
 # Load admin password from database if exists
 load_admin_password()
 
-def get_dns_blocklists():
-    """Get all DNS blocklists"""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, url, enabled FROM dns_blocklists ORDER BY name")
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-def add_dns_blocklist(name, url):
-    """Add a DNS blocklist"""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("INSERT INTO dns_blocklists (name, url) VALUES (?, ?)", (name, url))
-    blocklist_id = cur.lastrowid
-    conn.commit()
-    conn.close()
-    return blocklist_id
-
-def remove_dns_blocklist(blocklist_id):
-    """Remove a DNS blocklist"""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM dns_blocklists WHERE id = ?", (blocklist_id,))
-    conn.commit()
-    conn.close()
-
-def toggle_dns_blocklist(blocklist_id):
-    """Toggle enabled/disabled status of a DNS blocklist"""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE dns_blocklists SET enabled = NOT enabled WHERE id = ?", (blocklist_id,))
-    conn.commit()
-    conn.close()
-
 def get_peer_stats():
     """Get peer statistics from WireGuard"""
     try:
@@ -400,8 +354,6 @@ def update_adguard_password(new_password):
         with open(ADGUARD_CONFIG, 'r') as f:
             config_content = f.read()
         
-        print(f"✓ Read AdGuard config ({len(config_content)} chars)")
-        
         # Use regex to find and replace the password field
         # Look for patterns like: password: "$2y$..." or password: $2y$... or password: ""
         import re
@@ -412,7 +364,6 @@ def update_adguard_password(new_password):
             old_password_line = match.group(0)
             new_password_line = f'password: "{password_hash}"'
             config_content = config_content.replace(old_password_line, new_password_line)
-            print(f"✓ Found and replaced password in config (was: {old_password_line.strip()})")
         else:
             print(f"✗ Could not find password field in AdGuard config")
             # Debug: show lines containing 'password'
@@ -600,45 +551,7 @@ def apply_wg_changes(peers):
         print(f"✗ Error applying WireGuard changes: {type(e).__name__}: {e}")
         return False
 
-def import_from_config():
-    """Import peers from existing WireGuard config if database is empty"""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM peers")
-    count = cur.fetchone()[0]
-    if count > 0 or not os.path.exists(WG_CONF):
-        conn.close()
-        return
 
-    with open(WG_CONF) as f:
-        content = f.read()
-    peers = re.findall(r"\[Peer\]\n# (.*?)\nPublicKey = (.*?)\nAllowedIPs = ([0-9\.]+)/(\d+)", content)
-    for name, pubkey, ip, _ in peers:
-        cur.execute("INSERT OR IGNORE INTO peers (name, public_key, ip) VALUES (?, ?, ?)", (name, pubkey, ip))
-    conn.commit()
-    conn.close()
-
-import_from_config()
-
-# Add mock data if database is empty
-# def add_mock_data():
-#     conn = sqlite3.connect(DB_PATH)
-#     cur = conn.cursor()
-#     cur.execute("SELECT COUNT(*) FROM peers")
-#     count = cur.fetchone()[0]
-#     if count == 0:
-#         # Mock peers with generated keys (replace with real wg genkey outputs)
-#         mock_peers = [
-#             ("Alice", "WG1PublicKeyHere", "WG1PrivateKeyHere", "10.8.0.2"),
-#             ("Bob", "WG2PublicKeyHere", "WG2PrivateKeyHere", "10.8.0.3"),
-#             ("Charlie", "WG3PublicKeyHere", "WG3PrivateKeyHere", "10.8.0.4"),
-#         ]
-#         for name, pub, priv, ip in mock_peers:
-#             cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", (name, pub, priv, ip))
-#         conn.commit()
-#     conn.close()
-
-# add_mock_data()
 
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
@@ -710,36 +623,6 @@ def settings():
     return render_template("settings.html", 
                          server_region=server_region,
                          server_ip=SERVER_IP)
-
-@app.route("/dns", methods=["GET", "POST"])
-@login_required
-def dns_management():
-    if request.method == "POST":
-        action = request.form.get("action")
-        
-        if action == "add":
-            name = request.form.get("name", "").strip()
-            url = request.form.get("url", "").strip()
-            if name and url:
-                add_dns_blocklist(name, url)
-                flash(f"DNS blocklist '{name}' added successfully!", "success")
-        
-        elif action == "remove":
-            blocklist_id = request.form.get("blocklist_id")
-            if blocklist_id:
-                remove_dns_blocklist(int(blocklist_id))
-                flash("DNS blocklist removed successfully!", "success")
-        
-        elif action == "toggle":
-            blocklist_id = request.form.get("blocklist_id")
-            if blocklist_id:
-                toggle_dns_blocklist(int(blocklist_id))
-                flash("DNS blocklist status updated!", "success")
-        
-        return redirect(url_for("dns_management"))
-    
-    blocklists = get_dns_blocklists()
-    return render_template("dns.html", blocklists=blocklists)
 
 # === Routes ===
 @app.route("/login", methods=["GET", "POST"])
