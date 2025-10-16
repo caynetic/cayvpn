@@ -72,6 +72,7 @@ def fetch_location_details(ip_address: str) -> str:
             cmd = ['curl', '-s', '--max-time', '8', url]
             result = subprocess.run(cmd, capture_output=True, text=True)
             payload = result.stdout.strip()
+            print(f"[Location] {name} raw bytes: {len(payload)}")
 
             if not payload or len(payload) < 3:
                 print(f"[Location] {name} returned empty response")
@@ -80,7 +81,7 @@ def fetch_location_details(ip_address: str) -> str:
             try:
                 data = json.loads(payload)
             except json.JSONDecodeError:
-                print(f"[Location] {name} response not JSON")
+                print(f"[Location] {name} response not JSON. Sample: {payload[:120]}")
                 continue
 
             details = []
@@ -176,7 +177,7 @@ def fetch_location_details(ip_address: str) -> str:
             print(f"[Location] {name} request failed: {type(exc).__name__}: {exc}")
 
     print("[Location] All services failed")
-    return f"IP: {ip_address}\nLocation services unavailable"
+    return f"IP: {ip_address}\nLocation services unavailable\n(Check logs for details)"
 
 import json
 
