@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
 import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile
 from functools import wraps
 
@@ -150,7 +150,7 @@ def get_next_ip():
     return f"10.8.0.{next_num}"
 
 def write_wg_conf():
-    """Write WireGuard configuration file with all peers"""
+    """Write WireGuard configuration file and apply changes instantly"""
     try:
         peers = get_peers()
         if not os.path.exists(SERVER_PUB):
@@ -194,73 +194,111 @@ def write_wg_conf():
         
         config_content = "\n".join(config_lines)
         
-        # Write config
+        # Write config file
         try:
             with open(WG_CONF, "w") as f:
                 f.write(config_content)
             print(f"✓ WireGuard config written to {WG_CONF}")
         except PermissionError:
             print(f"⚠ Permission denied writing to {WG_CONF}, trying with sudo...")
-            # Write to temp file first
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.conf') as tmp:
                 tmp.write(config_content)
                 tmp_path = tmp.name
-            # Copy with sudo
             subprocess.run(["sudo", "cp", tmp_path, WG_CONF], check=True)
             subprocess.run(["sudo", "chmod", "600", WG_CONF], check=True)
             os.unlink(tmp_path)
             print(f"✓ WireGuard config written to {WG_CONF} (with sudo)")
         
-        # Try to reload WireGuard
-        sync_success = False
+        # Apply changes instantly using wg commands
+        sync_success = apply_wg_changes(peers)
         
-        # Check if interface exists
-        try:
-            result = subprocess.run(["ip", "link", "show", WG_INTERFACE], 
-                                  capture_output=True, text=True)
-            interface_exists = result.returncode == 0
-        except:
-            interface_exists = False
-        
-        if interface_exists:
-            print(f"✓ Interface {WG_INTERFACE} exists, attempting config sync")
-            
-            try:
-                strip_proc = subprocess.run(["wg-quick", "strip", WG_INTERFACE],
-                                            capture_output=True,
-                                            text=True,
-                                            check=True)
-                with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
-                    tmp.write(strip_proc.stdout)
-                    tmp_path = tmp.name
-                subprocess.run(["wg", "syncconf", WG_INTERFACE, tmp_path], check=True)
-                os.unlink(tmp_path)
-                sync_success = True
-                print(f"✓ WireGuard runtime sync completed via wg syncconf")
-            except subprocess.CalledProcessError as err:
-                print(f"⚠ wg syncconf failed: {err}")
-            except FileNotFoundError:
-                print("⚠ wg-quick or wg not available for syncconf")
-            finally:
-                if 'tmp_path' in locals() and os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-        else:
-            print(f"⚠ Interface {WG_INTERFACE} does not exist, will try service restart")
-
         if not sync_success:
+            print("⚠ Instant sync failed, trying service restart...")
             try:
-                subprocess.run(["systemctl", "restart", f"wg-quick@{WG_INTERFACE}"], check=True)
-                print(f"✓ WireGuard service restarted to apply config")
-            except subprocess.CalledProcessError as svc_err:
+                subprocess.run(["systemctl", "restart", f"wg-quick@{WG_INTERFACE}"], 
+                             check=True, timeout=10)
+                print(f"✓ WireGuard service restarted")
+                return True
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as svc_err:
                 print(f"✗ Failed to restart wg-quick@{WG_INTERFACE}: {svc_err}")
                 return False
         
-        return True
+        return sync_success
         
     except Exception as e:
         print(f"✗ Error writing WireGuard config: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+def apply_wg_changes(peers):
+    """Apply WireGuard configuration changes instantly using wg commands"""
+    try:
+        # Get current peers from running interface
+        try:
+            current_output = subprocess.run(["wg", "show", WG_INTERFACE, "peers"], 
+                                          capture_output=True, text=True, check=True)
+            current_peers = set(current_output.stdout.strip().split('\n')) if current_output.stdout.strip() else set()
+        except subprocess.CalledProcessError:
+            print(f"⚠ Could not get current peers for {WG_INTERFACE}")
+            current_peers = set()
+        
+        # Expected peers from our config
+        expected_peers = set(pubkey for _, _, pubkey, _, _ in peers)
+        
+        # Remove peers that shouldn't be there
+        to_remove = current_peers - expected_peers
+        for pubkey in to_remove:
+            try:
+                subprocess.run(["wg", "set", WG_INTERFACE, "peer", pubkey, "remove"], 
+                             check=True, timeout=5)
+                print(f"✓ Removed peer {pubkey[:8]}...")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Failed to remove peer {pubkey[:8]}: {e}")
+        
+        # Add or update peers
+        for _, name, pubkey, privkey, ip in peers:
+            try:
+                # Check if peer exists
+                peer_exists = pubkey in current_peers
+                
+                if peer_exists:
+                    # Update existing peer
+                    subprocess.run([
+                        "wg", "set", WG_INTERFACE, 
+                        "peer", pubkey, 
+                        "allowed-ips", f"{ip}/{WG_CLIENT_ADDRESS_PREFIX}",
+                        "persistent-keepalive", WG_PERSISTENT_KEEPALIVE if WG_PERSISTENT_KEEPALIVE else "0"
+                    ], check=True, timeout=5)
+                    print(f"✓ Updated peer {name}")
+                else:
+                    # Add new peer
+                    cmd = [
+                        "wg", "set", WG_INTERFACE, 
+                        "peer", pubkey, 
+                        "allowed-ips", f"{ip}/{WG_CLIENT_ADDRESS_PREFIX}"
+                    ]
+                    if WG_PERSISTENT_KEEPALIVE:
+                        cmd.extend(["persistent-keepalive", WG_PERSISTENT_KEEPALIVE])
+                    subprocess.run(cmd, check=True, timeout=5)
+                    print(f"✓ Added peer {name}")
+                    
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Failed to configure peer {name}: {e}")
+                return False
+        
+        # Save the configuration
+        try:
+            subprocess.run(["wg-quick", "save", WG_INTERFACE], 
+                         check=True, timeout=5, capture_output=True)
+            print(f"✓ Configuration saved to {WG_CONF}")
+        except subprocess.CalledProcessError as e:
+            print(f"⚠ Failed to save config: {e}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error applying WireGuard changes: {type(e).__name__}: {e}")
         return False
 
 def import_from_config():
@@ -359,6 +397,7 @@ def add_peer():
 
             if write_wg_conf():
                 print(f"✓ WireGuard config updated successfully")
+                flash(f"Peer '{name}' added successfully!", "success")
                 return redirect(url_for("index"))
             else:
                 # Config update failed, remove the peer from DB
@@ -368,7 +407,8 @@ def add_peer():
                 conn.commit()
                 conn.close()
                 print(f"✗ Config update failed, removed peer from database")
-                return render_template("add_peer.html", error="Failed to update WireGuard configuration")
+                flash("Failed to update WireGuard configuration", "error")
+                return redirect(url_for("index"))
         except Exception as e:
             print(f"✗ Error adding peer: {type(e).__name__}: {e}")
             import traceback
@@ -380,13 +420,33 @@ def add_peer():
 @app.route("/remove/<int:peer_id>")
 @login_required
 def remove_peer(peer_id):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM peers WHERE id=?", (peer_id,))
-    conn.commit()
-    conn.close()
-    write_wg_conf()
-    return redirect(url_for("index"))
+    try:
+        # Get peer info before deletion
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM peers WHERE id=?", (peer_id,))
+        peer = cur.fetchone()
+        peer_name = peer[0] if peer else "Unknown"
+        
+        # Remove from database
+        cur.execute("DELETE FROM peers WHERE id=?", (peer_id,))
+        conn.commit()
+        conn.close()
+        
+        print(f"✓ Peer '{peer_name}' removed from database")
+        
+        # Apply WireGuard changes instantly
+        if write_wg_conf():
+            print(f"✓ WireGuard config updated - peer '{peer_name}' removed")
+            flash(f"Peer '{peer_name}' removed successfully!", "success")
+        else:
+            print(f"⚠ WireGuard config update failed for peer removal")
+            flash(f"Peer '{peer_name}' removed from database but WireGuard update failed", "warning")
+        
+        return redirect(url_for("index"))
+    except Exception as e:
+        print(f"✗ Error removing peer: {type(e).__name__}: {e}")
+        return redirect(url_for("index"))
 
 @app.route("/config/<int:peer_id>")
 @login_required
