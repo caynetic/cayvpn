@@ -25,14 +25,20 @@
         <h5>Server Configuration</h5>
       </div>
       <div class="card-body">
-        <form method="post">
-          <div class="mb-3">
+        <form method="post" class="row g-3">
+          <input type="hidden" name="action" value="update_settings">
+          <div class="col-md-8">
             <label for="server_region" class="form-label">Server Region Details</label>
             <textarea class="form-control" id="server_region" name="server_region" rows="4" placeholder="Enter server location and region information">{{ server_region }}</textarea>
             <small class="form-text text-muted">This information is displayed on the dashboard and can include location details, datacenter info, etc.</small>
           </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-info me-2" onclick="autoDetectRegion()">
+              <i class="fas fa-search-location"></i> Auto-Detect
+            </button>
+          </div>
           
-          <div class="mb-3">
+          <div class="col-12">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="custom_dns_enabled" name="custom_dns_enabled" {% if custom_dns_enabled %}checked{% endif %}>
               <label class="form-check-label" for="custom_dns_enabled">
@@ -42,7 +48,9 @@
             <small class="form-text text-muted">When enabled, client configurations will include DNS = {{ server_ip }} in their WireGuard config files.</small>
           </div>
           
-          <button type="submit" class="btn btn-primary">Save Settings</button>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+          </div>
         </form>
       </div>
     </div>
@@ -76,4 +84,23 @@
     </div>
   </div>
 </div>
+
+<script>
+function autoDetectRegion() {
+  if (confirm('This will attempt to detect your server\'s location based on its public IP address. Continue?')) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'detect_region';
+    
+    form.appendChild(actionInput);
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+</script>
 {% endblock %}

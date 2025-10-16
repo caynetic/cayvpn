@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
-import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json
 from functools import wraps
 
 app = Flask(__name__)
@@ -37,6 +37,30 @@ ADMIN_PASS = "password"  # 🔐 Change this too!
 SERVER_IP = "Unknown"
 SERVER_REGION = "Unknown"
 
+def get_server_info():
+    """Get server info from config file or detect automatically"""
+    config_file = "/etc/wireguard/server_info.conf"
+    
+    # Try to read from config file first
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('SERVER_IP='):
+                        ip = line.split('=', 1)[1]
+                        if ip and ip != 'Unknown':
+                            return ip, None  # Return IP, will get region separately
+                    elif line.startswith('SERVER_REGION='):
+                        region = line.split('=', 1)[1]
+                        if region and region != 'Unknown':
+                            return None, region  # Return region, will get IP separately
+        except Exception as e:
+            print(f"⚠ Could not read server config file: {e}")
+    
+    # Fall back to automatic detection
+    return None, None
+
 def get_public_ip():
     """Try multiple services to get public IP"""
     services = [
@@ -57,23 +81,82 @@ def get_public_ip():
     return None
 
 def fetch_location_details(ip_address: str) -> str:
-    """Return placeholder location info."""
-    print("[Location] Location detection disabled; returning placeholder message")
-    return "Location detection disabled"
+    """Fetch location details for an IP address using multiple APIs"""
+    if not ip_address or ip_address in ['127.0.0.1', 'localhost']:
+        return "Local Network"
+    
+    apis = [
+        {
+            'url': f'https://ipapi.co/{ip_address}/json/',
+            'fields': ['city', 'region', 'country_name'],
+            'country_field': 'country_name'
+        },
+        {
+            'url': f'https://ipinfo.io/{ip_address}/json',
+            'fields': ['city', 'region', 'country'],
+            'country_field': 'country'
+        },
+        {
+            'url': f'http://ip-api.com/json/{ip_address}',
+            'fields': ['city', 'regionName', 'country'],
+            'country_field': 'country'
+        }
+    ]
+    
+    for api in apis:
+        try:
+            result = subprocess.run(['curl', '-s', '--max-time', '10', api['url']], 
+                                  capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            
+            if 'error' in data or data.get('status') == 'fail':
+                continue
+                
+            location_parts = []
+            for field in api['fields']:
+                value = data.get(field)
+                if value and value != 'Unknown':
+                    location_parts.append(value)
+            
+            if location_parts:
+                location = ', '.join(location_parts)
+                print(f"✓ Detected location: {location}")
+                return location
+                
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+            print(f"⚠ API {api['url']} failed: {e}")
+            continue
+    
+    print("⚠ All location APIs failed, using default")
+    return f"Server Location (IP: {ip_address})"
 
 try:
-    SERVER_IP = get_public_ip()
-    if not SERVER_IP:
-        # Fallback to local IP detection
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        SERVER_IP = s.getsockname()[0]
-        s.close()
-        SERVER_REGION = "Local Network"
+    # Try to get server info from config file first
+    config_ip, config_region = get_server_info()
+    
+    if config_ip:
+        SERVER_IP = config_ip
+        print(f"✓ Server IP loaded from config: {SERVER_IP}")
     else:
-        print(f"✓ Detected Public IP: {SERVER_IP}")
+        SERVER_IP = get_public_ip()
+        if not SERVER_IP:
+            # Fallback to local IP detection
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            SERVER_IP = s.getsockname()[0]
+            s.close()
+            print(f"✓ Using local IP: {SERVER_IP}")
+        else:
+            print(f"✓ Detected Public IP: {SERVER_IP}")
+    
+    if config_region:
+        SERVER_REGION = config_region
+        print(f"✓ Server region loaded from config: {SERVER_REGION}")
+    else:
+        # Detect region if not in config
         SERVER_REGION = fetch_location_details(SERVER_IP)
+        print(f"✓ Detected region: {SERVER_REGION}")
             
 except Exception as e:
     print(f"✗ IP detection failed: {type(e).__name__}: {e}")
@@ -455,16 +538,34 @@ import_from_config()
 @login_required
 def settings():
     if request.method == "POST":
-        # Update settings
-        server_region = request.form.get("server_region", "").strip()
-        custom_dns_enabled = "1" if request.form.get("custom_dns_enabled") else "0"
+        action = request.form.get("action")
         
-        if server_region:
-            set_setting('server_region', server_region)
-        set_setting('custom_dns_enabled', custom_dns_enabled)
+        if action == "update_settings":
+            # Update settings
+            server_region = request.form.get("server_region", "").strip()
+            custom_dns_enabled = "1" if request.form.get("custom_dns_enabled") else "0"
+            
+            if server_region:
+                set_setting('server_region', server_region)
+            set_setting('custom_dns_enabled', custom_dns_enabled)
+            
+            flash("Settings updated successfully!", "success")
+            return redirect(url_for("settings"))
         
-        flash("Settings updated successfully!", "success")
-        return redirect(url_for("settings"))
+        elif action == "detect_region":
+            # Auto-detect region
+            try:
+                current_ip = get_public_ip()
+                if current_ip:
+                    detected_region = fetch_location_details(current_ip)
+                    set_setting('server_region', detected_region)
+                    flash(f"Region auto-detected: {detected_region}", "success")
+                else:
+                    flash("Could not detect public IP for region detection", "warning")
+            except Exception as e:
+                flash(f"Region detection failed: {str(e)}", "error")
+            
+            return redirect(url_for("settings"))
     
     # Get current settings
     server_region = get_setting('server_region', SERVER_REGION)
