@@ -55,130 +55,195 @@ try:
         # Get detailed region info - try multiple services
         location_detected = False
         
-        # Try ipinfo.io first
-        try:
-            print(f"Fetching location data from ipinfo.io for {SERVER_IP}...")
-            cmd = ['curl', '-s', '--max-time', '10', f'https://ipinfo.io/{SERVER_IP}/json']
-            region_result = subprocess.run(cmd, capture_output=True, text=True)
-            region_data = region_result.stdout.strip()
-            
-            print(f"Response received: {len(region_data)} bytes")
-            
-            if region_data and len(region_data) > 20:
-                try:
-                    region_json = json.loads(region_data)
-                    print(f"JSON parsed successfully. Keys: {', '.join(region_json.keys())}")
-                    
-                    # Check for rate limit or error
-                    if 'error' not in region_json:
-                        # Build detailed region string
-                        details = []
-                        
-                        if region_json.get('hostname'):
-                            details.append(f"Hostname: {region_json['hostname']}")
-                        
-                        if region_json.get('org'):
-                            org = region_json['org']
-                            # Parse ASN and ISP from org field like "AS14061 DigitalOcean, LLC"
-                            if org.startswith('AS'):
-                                org_parts = org.split(' ', 1)
-                                if len(org_parts) == 2:
-                                    asn = org_parts[0].replace('AS', '')
-                                    isp = org_parts[1]
-                                    details.append(f"ASN: {asn}")
-                                    details.append(f"ISP: {isp}")
-                            else:
-                                details.append(f"Organization: {org}")
-                        
-                        if region_json.get('city'):
-                            details.append(f"City: {region_json['city']}")
-                        
-                        if region_json.get('region'):
-                            details.append(f"State/Region: {region_json['region']}")
-                        
-                        if region_json.get('country'):
-                            details.append(f"Country: {region_json['country']}")
-                        
-                        if region_json.get('loc'):
-                            # Parse latitude and longitude
-                            lat, lon = region_json['loc'].split(',')
-                            details.append(f"Coordinates: {lat}, {lon}")
-                        
-                        if details:
-                            SERVER_REGION = '\n'.join(details)
-                            print(f"✓ Region info collected from ipinfo.io: {len(details)} fields")
-                            location_detected = True
-                    else:
-                        print(f"⚠ ipinfo.io error: {region_json.get('error', {}).get('message', 'Unknown error')}")
-                
-                except json.JSONDecodeError as je:
-                    print(f"✗ JSON parse error: {je}")
-            else:
-                print(f"✗ Invalid or empty response from ipinfo.io")
-        except Exception as e:
-            print(f"✗ ipinfo.io request failed: {type(e).__name__}: {e}")
-        
-        # Fallback to ip-api.com if ipinfo.io failed
+        # Service 1: Try ipapi.co (very reliable, no auth needed)
         if not location_detected:
             try:
-                print(f"Trying fallback service ip-api.com...")
-                cmd = ['curl', '-s', '--max-time', '10', f'http://ip-api.com/json/{SERVER_IP}']
-                region_result = subprocess.run(cmd, capture_output=True, text=True)
-                region_data = region_result.stdout.strip()
+                print(f"[1/4] Trying ipapi.co...")
+                cmd = ['curl', '-s', '--max-time', '8', f'https://ipapi.co/{SERVER_IP}/json/']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                data = result.stdout.strip()
                 
-                if region_data and len(region_data) > 20:
+                if data and len(data) > 20:
                     try:
-                        region_json = json.loads(region_data)
+                        info = json.loads(data)
                         
-                        if region_json.get('status') == 'success':
+                        if not info.get('error') and info.get('city'):
                             details = []
                             
-                            if region_json.get('reverse'):
-                                details.append(f"Hostname: {region_json['reverse']}")
+                            if info.get('org'):
+                                details.append(f"ISP: {info['org']}")
                             
-                            if region_json.get('as'):
+                            if info.get('asn'):
+                                details.append(f"ASN: {info['asn']}")
+                            
+                            if info.get('city'):
+                                details.append(f"City: {info['city']}")
+                            
+                            if info.get('region'):
+                                details.append(f"State/Region: {info['region']}")
+                            
+                            if info.get('country_name'):
+                                details.append(f"Country: {info['country_name']}")
+                            
+                            if info.get('latitude') and info.get('longitude'):
+                                details.append(f"Coordinates: {info['latitude']}, {info['longitude']}")
+                            
+                            if details:
+                                SERVER_REGION = '\n'.join(details)
+                                print(f"✓ Success! Got {len(details)} fields from ipapi.co")
+                                location_detected = True
+                        else:
+                            print(f"⚠ ipapi.co returned error or incomplete data")
+                    except json.JSONDecodeError:
+                        print(f"✗ Could not parse ipapi.co response")
+            except Exception as e:
+                print(f"✗ ipapi.co failed: {e}")
+        
+        # Service 2: Try ip-api.com
+        if not location_detected:
+            try:
+                print(f"[2/4] Trying ip-api.com...")
+                cmd = ['curl', '-s', '--max-time', '8', f'http://ip-api.com/json/{SERVER_IP}']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                data = result.stdout.strip()
+                
+                if data and len(data) > 20:
+                    try:
+                        info = json.loads(data)
+                        
+                        if info.get('status') == 'success':
+                            details = []
+                            
+                            if info.get('as'):
                                 # Parse "AS14061 DigitalOcean, LLC"
-                                as_info = region_json['as']
+                                as_info = info['as']
                                 if as_info.startswith('AS'):
                                     as_parts = as_info.split(' ', 1)
                                     if len(as_parts) == 2:
                                         details.append(f"ASN: {as_parts[0].replace('AS', '')}")
                                         details.append(f"ISP: {as_parts[1]}")
                             
-                            if region_json.get('isp'):
-                                if not any('ISP:' in d for d in details):
-                                    details.append(f"ISP: {region_json['isp']}")
+                            if info.get('isp') and not any('ISP:' in d for d in details):
+                                details.append(f"ISP: {info['isp']}")
                             
-                            if region_json.get('city'):
-                                details.append(f"City: {region_json['city']}")
+                            if info.get('city'):
+                                details.append(f"City: {info['city']}")
                             
-                            if region_json.get('regionName'):
-                                details.append(f"State/Region: {region_json['regionName']}")
+                            if info.get('regionName'):
+                                details.append(f"State/Region: {info['regionName']}")
                             
-                            if region_json.get('country'):
-                                details.append(f"Country: {region_json['country']}")
+                            if info.get('country'):
+                                details.append(f"Country: {info['country']}")
                             
-                            if region_json.get('lat') and region_json.get('lon'):
-                                details.append(f"Coordinates: {region_json['lat']}, {region_json['lon']}")
+                            if info.get('lat') and info.get('lon'):
+                                details.append(f"Coordinates: {info['lat']}, {info['lon']}")
                             
                             if details:
                                 SERVER_REGION = '\n'.join(details)
-                                print(f"✓ Region info collected from ip-api.com: {len(details)} fields")
+                                print(f"✓ Success! Got {len(details)} fields from ip-api.com")
                                 location_detected = True
                         else:
-                            print(f"⚠ ip-api.com error: {region_json.get('message', 'Unknown error')}")
-                    
-                    except json.JSONDecodeError as je:
-                        print(f"✗ JSON parse error from ip-api.com: {je}")
-                else:
-                    print(f"✗ Invalid or empty response from ip-api.com")
+                            print(f"⚠ ip-api.com returned: {info.get('message', 'Unknown error')}")
+                    except json.JSONDecodeError:
+                        print(f"✗ Could not parse ip-api.com response")
             except Exception as e:
-                print(f"✗ ip-api.com request failed: {type(e).__name__}: {e}")
+                print(f"✗ ip-api.com failed: {e}")
         
-        # Final fallback if both services failed
+        # Service 3: Try geoip.tools (simple and reliable)
         if not location_detected:
-            SERVER_REGION = f"IP: {SERVER_IP}\nLocation services unavailable"
-            print("⚠ All location services failed")
+            try:
+                print(f"[3/4] Trying geoip.tools...")
+                cmd = ['curl', '-s', '--max-time', '8', f'https://geoip.tools/v1/json/{SERVER_IP}']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                data = result.stdout.strip()
+                
+                if data and len(data) > 20:
+                    try:
+                        info = json.loads(data)
+                        
+                        if info.get('city'):
+                            details = []
+                            
+                            if info.get('asn', {}).get('organisation'):
+                                details.append(f"ISP: {info['asn']['organisation']}")
+                            
+                            if info.get('asn', {}).get('number'):
+                                details.append(f"ASN: {info['asn']['number']}")
+                            
+                            if info.get('city'):
+                                details.append(f"City: {info['city']}")
+                            
+                            if info.get('region'):
+                                details.append(f"State/Region: {info['region']}")
+                            
+                            if info.get('country'):
+                                details.append(f"Country: {info['country']}")
+                            
+                            if info.get('latitude') and info.get('longitude'):
+                                details.append(f"Coordinates: {info['latitude']}, {info['longitude']}")
+                            
+                            if details:
+                                SERVER_REGION = '\n'.join(details)
+                                print(f"✓ Success! Got {len(details)} fields from geoip.tools")
+                                location_detected = True
+                    except json.JSONDecodeError:
+                        print(f"✗ Could not parse geoip.tools response")
+            except Exception as e:
+                print(f"✗ geoip.tools failed: {e}")
+        
+        # Service 4: Try ipinfo.io (last resort, might be rate limited)
+        if not location_detected:
+            try:
+                print(f"[4/4] Trying ipinfo.io...")
+                cmd = ['curl', '-s', '--max-time', '8', f'https://ipinfo.io/{SERVER_IP}/json']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                data = result.stdout.strip()
+                
+                if data and len(data) > 20:
+                    try:
+                        info = json.loads(data)
+                        
+                        if 'error' not in info and info.get('city'):
+                            details = []
+                            
+                            if info.get('org'):
+                                org = info['org']
+                                if org.startswith('AS'):
+                                    org_parts = org.split(' ', 1)
+                                    if len(org_parts) == 2:
+                                        details.append(f"ASN: {org_parts[0].replace('AS', '')}")
+                                        details.append(f"ISP: {org_parts[1]}")
+                                else:
+                                    details.append(f"ISP: {org}")
+                            
+                            if info.get('city'):
+                                details.append(f"City: {info['city']}")
+                            
+                            if info.get('region'):
+                                details.append(f"State/Region: {info['region']}")
+                            
+                            if info.get('country'):
+                                details.append(f"Country: {info['country']}")
+                            
+                            if info.get('loc'):
+                                lat, lon = info['loc'].split(',')
+                                details.append(f"Coordinates: {lat}, {lon}")
+                            
+                            if details:
+                                SERVER_REGION = '\n'.join(details)
+                                print(f"✓ Success! Got {len(details)} fields from ipinfo.io")
+                                location_detected = True
+                        else:
+                            print(f"⚠ ipinfo.io rate limited or error")
+                    except json.JSONDecodeError:
+                        print(f"✗ Could not parse ipinfo.io response")
+            except Exception as e:
+                print(f"✗ ipinfo.io failed: {e}")
+        
+        # Final fallback if all services failed
+        if not location_detected:
+            SERVER_REGION = f"IP: {SERVER_IP}\nAll location services unavailable\n(Check firewall/network settings)"
+            print("✗ ALL 4 location services failed - check server network/firewall")
             
 except Exception as e:
     print(f"✗ IP detection failed: {type(e).__name__}: {e}")
