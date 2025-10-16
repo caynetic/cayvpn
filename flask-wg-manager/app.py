@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify
-import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, bcrypt
 from functools import wraps
 
 app = Flask(__name__)
@@ -373,23 +373,14 @@ def get_peer_stats():
         return {}
 
 def update_adguard_password(new_password):
-    """Update AdGuard Home password using htpasswd command"""
+    """Update AdGuard Home password using bcrypt"""
     try:
-        # Use htpasswd to generate bcrypt hash
-        # htpasswd -B -C 10 -n -b <USERNAME> <PASSWORD>
-        # This outputs: username:$2y$10$...
-        result = subprocess.run([
-            "htpasswd", "-B", "-C", "10", "-n", "-b", "admin", new_password
-        ], capture_output=True, text=True, check=True)
+        # Generate bcrypt hash for AdGuard Home
+        # AdGuard Home uses bcrypt hashes with $2a$ prefix
+        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Parse the output: "admin:$2y$10$..."
-        htpasswd_output = result.stdout.strip()
-        if ":" not in htpasswd_output:
-            print("✗ Unexpected htpasswd output format")
-            return False
-        
-        username, password_hash = htpasswd_output.split(":", 1)
-        print(f"✓ Generated bcrypt hash for user '{username}'")
+        # Convert $2b$ to $2a$ for AdGuard compatibility
+        password_hash = password_hash.replace('$2b$', '$2a$')
         
         # Read current AdGuard config
         if not os.path.exists(ADGUARD_CONFIG):
@@ -401,9 +392,9 @@ def update_adguard_password(new_password):
             config_content = f.read()
         
         # Use regex to find and replace the password field
-        # Look for patterns like: password: "$2y$..." or password: $2y$...
+        # Look for patterns like: password: "$2a$..." or password: $2a$...
         import re
-        password_pattern = r'(password:\s*)(["\']?)(\$2[ayby]\$[^\s"\'"]+)["\']?'
+        password_pattern = r'(password:\s*)(["\']?)(\$2[ay]\$[^\s"\'"]+)["\']?'
         match = re.search(password_pattern, config_content)
         
         if match:
