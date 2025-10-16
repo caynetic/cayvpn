@@ -17,6 +17,12 @@ ADGH_ADMIN_PORT="${ADGH_ADMIN_PORT:-3000}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASS="${ADMIN_PASS:-ChangeThisNow_!#}"
 
+# HTTPS Configuration
+ENABLE_HTTPS="${ENABLE_HTTPS:-1}"
+SSL_CERT_PATH="${SSL_CERT_PATH:-/etc/ssl/certs/cayvpn.crt}"
+SSL_KEY_PATH="${SSL_KEY_PATH:-/etc/ssl/private/cayvpn.key}"
+HTTPS_PORT="${HTTPS_PORT:-8443}"
+
 OUT_IFACE="${OUT_IFACE:-$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)}"
 if [[ -z "${OUT_IFACE}" ]]; then echo "Could not auto-detect OUT_IFACE"; exit 1; fi
 
@@ -299,6 +305,10 @@ Restart=always
 RestartSec=10
 Environment=SERVER_IP=${PUB_IP}
 Environment=SERVER_REGION=${SERVER_REGION}
+Environment=ENABLE_HTTPS=${ENABLE_HTTPS}
+Environment=SSL_CERT_PATH=${SSL_CERT_PATH}
+Environment=SSL_KEY_PATH=${SSL_KEY_PATH}
+Environment=HTTPS_PORT=${HTTPS_PORT}
 
 [Install]
 WantedBy=multi-user.target
@@ -318,6 +328,47 @@ iptables -C INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || ipta
 iptables -C INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP
 netfilter-persistent save
 
+# ---------- HTTPS Setup ----------
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    echo "🔒 Setting up HTTPS with self-signed certificate..."
+    
+    # Install OpenSSL if not present
+    if ! command -v openssl &> /dev/null; then
+        echo "Installing OpenSSL..."
+        apt update && apt install -y openssl
+    fi
+    
+    # Create SSL directory if it doesn't exist
+    mkdir -p /etc/ssl/private /etc/ssl/certs
+    
+    # Generate self-signed certificate
+    if [[ ! -f "${SSL_CERT_PATH}" ]] || [[ ! -f "${SSL_KEY_PATH}" ]]; then
+        echo "Generating self-signed SSL certificate..."
+        openssl req -x509 -newkey rsa:4096 \
+            -keyout "${SSL_KEY_PATH}" \
+            -out "${SSL_CERT_PATH}" \
+            -days 365 \
+            -nodes \
+            -subj "/C=US/ST=State/L=City/O=CayVPN/CN=${PUB_IP:-localhost}"
+        
+        # Set proper permissions
+        chmod 600 "${SSL_KEY_PATH}"
+        chmod 644 "${SSL_CERT_PATH}"
+        
+        echo "✓ SSL certificate generated"
+    else
+        echo "✓ SSL certificate already exists"
+    fi
+    
+    # Add HTTPS port to firewall
+    iptables -C INPUT -p tcp --dport ${HTTPS_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${HTTPS_PORT} -j ACCEPT
+    netfilter-persistent save
+    
+    echo "✓ HTTPS configured on port ${HTTPS_PORT}"
+else
+    echo "⚠ HTTPS disabled (set ENABLE_HTTPS=1 to enable)"
+fi
+
 # ---------- Start CayVPN Service ----------
 echo "🚀 Starting CayVPN service..."
 systemctl start cayvpn
@@ -329,7 +380,14 @@ rm -rf "$tmpdir"
 echo ""
 echo "🎉 CayVPN Installation Complete!"
 echo "================================="
-echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888"
+
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    echo "🔒 CayVPN Web Interface: https://${PUB_IP}:${HTTPS_PORT}"
+    echo "🔓 HTTP Fallback: http://${PUB_IP}:8888"
+else
+    echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888"
+fi
+
 echo "🔐 Initial Setup: Visit the web interface to set your admin password"
 echo ""
 echo "📡 WireGuard: ${WG_IFACE} UDP ${WG_PORT} (${WG_SUBNET_V4})"
@@ -343,10 +401,17 @@ echo "  - CayVPN: $(systemctl is-active cayvpn)"
 echo "  - Cloudflared: $(systemctl is-active cloudflared-dns)"
 echo ""
 echo "📝 Next Steps:"
-echo "  1. Visit http://${PUB_IP}:8888 and set your initial admin password"
-echo "  2. Add WireGuard peers through the CayVPN dashboard"
-echo "  3. Configure port forwarding for UDP ${WG_PORT}"
-echo "  4. Consider enabling HTTPS (see README for instructions)"
+echo "  1. Visit the web interface and set your initial admin password"
+
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    echo "  2. Accept the self-signed certificate warning in your browser"
+    echo "  3. Consider getting a proper certificate from Let's Encrypt"
+else
+    echo "  2. Consider enabling HTTPS for better security"
+fi
+
+echo "  4. Add WireGuard peers through the CayVPN dashboard"
+echo "  5. Configure port forwarding for UDP ${WG_PORT}"
 echo ""
 echo "🛠️ Management Commands:"
 echo "  sudo systemctl status cayvpn    # Check CayVPN status"

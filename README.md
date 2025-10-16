@@ -28,42 +28,43 @@ Visit `http://your-server:8888` and set your initial admin password.
 
 ### 🔄 Remaining Security Recommendations
 
-#### HTTPS Setup (Recommended)
+#### HTTPS Setup (Now Automatic!)
 
-For production use, enable HTTPS:
+The installation script now automatically enables HTTPS by default with a self-signed certificate:
 
-1. **Using Let's Encrypt (Recommended):**
+- **Certificate**: `/etc/ssl/certs/cayvpn.crt`
+- **Private Key**: `/etc/ssl/private/cayvpn.key`
+- **Port**: `8443` (configurable)
+
+**To disable HTTPS**, set `ENABLE_HTTPS=0` before running the install script.
+
+#### Upgrading to Let's Encrypt (Recommended for Production)
+
+For a proper certificate (no browser warnings):
+
+1. **Get a domain name** pointing to your server
+2. **Install certbot**:
 ```bash
 sudo apt install certbot
+```
+
+3. **Get certificate**:
+```bash
 sudo certbot certonly --standalone -d your-domain.com
 ```
 
-2. **Update Flask App for HTTPS:**
-```python
-# In app.py, change:
-app.config['SESSION_COOKIE_SECURE'] = True
+4. **Update configuration**:
+```bash
+# Edit systemd service
+sudo systemctl edit cayvpn
 
-# Run with SSL:
-app.run(host="0.0.0.0", port=8888, ssl_context=('cert.pem', 'key.pem'))
-```
+# Add environment variables:
+Environment=SSL_CERT_PATH=/etc/letsencrypt/live/your-domain.com/fullchain.pem
+Environment=SSL_KEY_PATH=/etc/letsencrypt/live/your-domain.com/privkey.pem
+Environment=HTTPS_PORT=443
 
-3. **Using Nginx Reverse Proxy:**
-```nginx
-server {
-    listen 443 ssl;
-    server_name your-domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8888;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+# Restart service
+sudo systemctl restart cayvpn
 ```
 
 #### Additional Security Measures
@@ -99,6 +100,10 @@ server {
 - `WG_PORT`: WireGuard UDP port (default: 43210)
 - `SERVER_IP`: Server IP address (auto-detected)
 - `SERVER_REGION`: Server location description (auto-detected)
+- `ENABLE_HTTPS`: Enable HTTPS with self-signed certificate (default: 1)
+- `SSL_CERT_PATH`: Path to SSL certificate (default: /etc/ssl/certs/cayvpn.crt)
+- `SSL_KEY_PATH`: Path to SSL private key (default: /etc/ssl/private/cayvpn.key)
+- `HTTPS_PORT`: HTTPS port (default: 8443)
 
 ### File Locations
 

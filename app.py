@@ -32,11 +32,22 @@ csrf = CSRFProtect(app)
 
 # Secure session configuration
 app.config.update(
-    SESSION_COOKIE_SECURE=False,  # Set to True when using HTTPS
+    SESSION_COOKIE_SECURE=False,  # Will be set to True if HTTPS is enabled
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=3600,  # 1 hour
 )
+
+# HTTPS Configuration
+ENABLE_HTTPS = os.environ.get('ENABLE_HTTPS', '0') == '1'
+SSL_CERT_PATH = os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/cayvpn.crt')
+SSL_KEY_PATH = os.environ.get('SSL_KEY_PATH', '/etc/ssl/private/cayvpn.key')
+HTTPS_PORT = int(os.environ.get('HTTPS_PORT', '8443'))
+
+# Enable secure cookies if HTTPS is enabled
+if ENABLE_HTTPS:
+    app.config['SESSION_COOKIE_SECURE'] = True
+    print("✓ HTTPS enabled - secure cookies activated")
 
 # Security headers
 @app.after_request
@@ -1106,4 +1117,13 @@ def api_peer_stats():
     return jsonify(stats_data)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8888)
+    if ENABLE_HTTPS and os.path.exists(SSL_CERT_PATH) and os.path.exists(SSL_KEY_PATH):
+        print(f"🔒 Starting HTTPS server on port {HTTPS_PORT}")
+        print(f"   Certificate: {SSL_CERT_PATH}")
+        print(f"   Private Key: {SSL_KEY_PATH}")
+        app.run(host="0.0.0.0", port=HTTPS_PORT, ssl_context=(SSL_CERT_PATH, SSL_KEY_PATH))
+    else:
+        print(f"🌐 Starting HTTP server on port 8888")
+        if ENABLE_HTTPS:
+            print("⚠ HTTPS enabled but certificates not found - falling back to HTTP")
+        app.run(host="0.0.0.0", port=8888)
