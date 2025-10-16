@@ -344,10 +344,18 @@ def load_admin_password():
         # No password set - this is first run
         ADMIN_PASS = None
         print("⚠ No admin password set - first time setup required")
+        print("   Visit the web interface to set your initial admin password")
         return False
 
 # Load admin password from database if exists
-load_admin_password()
+password_loaded = load_admin_password()
+if not password_loaded:
+    print("\n" + "="*60)
+    print("🔐 FIRST TIME SETUP REQUIRED")
+    print("="*60)
+    print("Visit the web interface to set your admin password.")
+    print("This password will be used for both CayVPN and AdGuard Home.")
+    print("="*60 + "\n")
 
 def get_peer_stats():
     """Get peer statistics from WireGuard"""
@@ -715,19 +723,30 @@ def login():
     if "logged_in" in session:
         return redirect(url_for("index"))
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
         
         # Check if this is first time setup (no password set)
         if ADMIN_PASS is None:
-            if username == ADMIN_USER and len(password) >= 8:
-                # Set initial password
-                update_admin_password(password)
-                session["logged_in"] = True
-                flash("Welcome! Admin password has been set.", "success")
-                return redirect(url_for("index"))
-            else:
-                return render_template("login.html", error="Please set an initial password (minimum 8 characters)")
+            # Validate username
+            if username != ADMIN_USER:
+                return render_template("login.html", first_time=True, error="Username must be 'admin'")
+            
+            # Validate password length
+            if len(password) < 8:
+                return render_template("login.html", first_time=True, error="Password must be at least 8 characters")
+            
+            # Validate password confirmation
+            if password != confirm_password:
+                return render_template("login.html", first_time=True, error="Passwords do not match")
+            
+            # Set initial password
+            update_admin_password(password)
+            update_adguard_password(password)
+            session["logged_in"] = True
+            flash("Welcome! Your admin password has been set for both CayVPN and AdGuard Home.", "success")
+            return redirect(url_for("index"))
         
         # Normal login
         if username == ADMIN_USER and password == ADMIN_PASS:

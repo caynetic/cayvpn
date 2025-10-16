@@ -26,10 +26,17 @@
           </div>
           <div class="mb-3">
             <label for="password" class="form-label">{% if first_time %}Set Initial Password{% else %}Password{% endif %}</label>
-            <input type="password" class="form-control" id="password" name="password" required minlength="8">
+            <input type="password" class="form-control" id="password" name="password" required minlength="8" autocomplete="{% if first_time %}new-password{% else %}current-password{% endif %}">
             <small class="form-text text-muted">Minimum 8 characters required</small>
           </div>
-          <button type="submit" class="btn btn-primary">{% if first_time %}Set Password{% else %}Login{% endif %}</button>
+          {% if first_time %}
+          <div class="mb-3">
+            <label for="confirm_password" class="form-label">Confirm Password</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="8" autocomplete="new-password">
+            <small class="form-text text-muted">Re-enter your password to confirm</small>
+          </div>
+          {% endif %}
+          <button type="submit" class="btn btn-primary">{% if first_time %}Set Password & Login{% else %}Login{% endif %}</button>
         </form>
       </div>
     </div>
