@@ -104,6 +104,37 @@ def init_db():
         cur.execute("ALTER TABLE peers ADD COLUMN privkey TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
+    
+    # Create settings table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    
+    # Create dns_blocklists table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS dns_blocklists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            enabled BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Set default settings if not exist
+    default_settings = [
+        ('server_region', SERVER_REGION),
+        ('custom_dns_enabled', '1'),
+        ('adguard_ip', '10.8.0.1'),
+        ('adguard_port', '53')
+    ]
+    
+    for key, value in default_settings:
+        cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    
     conn.commit()
     conn.close()
 
@@ -148,6 +179,85 @@ def get_next_ip():
         return "10.8.0.2"
     next_num = max(existing_ips) + 1
     return f"10.8.0.{next_num}"
+
+def get_setting(key, default=None):
+    """Get a setting value from database"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    result = cur.fetchone()
+    conn.close()
+    return result[0] if result else default
+
+def set_setting(key, value):
+    """Set a setting value in database"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+def get_dns_blocklists():
+    """Get all DNS blocklists"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, url, enabled FROM dns_blocklists ORDER BY name")
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+def add_dns_blocklist(name, url):
+    """Add a DNS blocklist"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO dns_blocklists (name, url) VALUES (?, ?)", (name, url))
+    blocklist_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return blocklist_id
+
+def remove_dns_blocklist(blocklist_id):
+    """Remove a DNS blocklist"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM dns_blocklists WHERE id = ?", (blocklist_id,))
+    conn.commit()
+    conn.close()
+
+def toggle_dns_blocklist(blocklist_id):
+    """Toggle enabled/disabled status of a DNS blocklist"""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("UPDATE dns_blocklists SET enabled = NOT enabled WHERE id = ?", (blocklist_id,))
+    conn.commit()
+    conn.close()
+
+def get_peer_stats():
+    """Get peer statistics from WireGuard"""
+    try:
+        result = subprocess.run(["wg", "show", WG_INTERFACE, "dump"], 
+                              capture_output=True, text=True, check=True)
+        lines = result.stdout.strip().split('\n')
+        if not lines:
+            return {}
+        
+        stats = {}
+        for line in lines[1:]:  # Skip header
+            parts = line.split('\t')
+            if len(parts) >= 5:
+                pubkey = parts[0]
+                rx_bytes = parts[2]  # received bytes
+                tx_bytes = parts[3]  # transmitted bytes
+                last_handshake = parts[4]
+                stats[pubkey] = {
+                    'rx_bytes': int(rx_bytes),
+                    'tx_bytes': int(tx_bytes),
+                    'last_handshake': int(last_handshake)
+                }
+        return stats
+    except Exception as e:
+        print(f"Error getting peer stats: {e}")
+        return {}
 
 def write_wg_conf():
     """Write WireGuard configuration file and apply changes instantly"""
@@ -341,6 +451,59 @@ import_from_config()
 
 # add_mock_data()
 
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    if request.method == "POST":
+        # Update settings
+        server_region = request.form.get("server_region", "").strip()
+        custom_dns_enabled = "1" if request.form.get("custom_dns_enabled") else "0"
+        
+        if server_region:
+            set_setting('server_region', server_region)
+        set_setting('custom_dns_enabled', custom_dns_enabled)
+        
+        flash("Settings updated successfully!", "success")
+        return redirect(url_for("settings"))
+    
+    # Get current settings
+    server_region = get_setting('server_region', SERVER_REGION)
+    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
+    
+    return render_template("settings.html", 
+                         server_region=server_region,
+                         custom_dns_enabled=custom_dns_enabled)
+
+@app.route("/dns", methods=["GET", "POST"])
+@login_required
+def dns_management():
+    if request.method == "POST":
+        action = request.form.get("action")
+        
+        if action == "add":
+            name = request.form.get("name", "").strip()
+            url = request.form.get("url", "").strip()
+            if name and url:
+                add_dns_blocklist(name, url)
+                flash(f"DNS blocklist '{name}' added successfully!", "success")
+        
+        elif action == "remove":
+            blocklist_id = request.form.get("blocklist_id")
+            if blocklist_id:
+                remove_dns_blocklist(int(blocklist_id))
+                flash("DNS blocklist removed successfully!", "success")
+        
+        elif action == "toggle":
+            blocklist_id = request.form.get("blocklist_id")
+            if blocklist_id:
+                toggle_dns_blocklist(int(blocklist_id))
+                flash("DNS blocklist status updated!", "success")
+        
+        return redirect(url_for("dns_management"))
+    
+    blocklists = get_dns_blocklists()
+    return render_template("dns.html", blocklists=blocklists)
+
 # === Routes ===
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -365,7 +528,22 @@ def logout():
 @login_required
 def index():
     peers = get_peers()
-    return render_template("index.html", peers=peers, server_ip=SERVER_IP, server_region=SERVER_REGION)
+    peer_stats = get_peer_stats()
+    server_region = get_setting('server_region', SERVER_REGION)
+    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
+    
+    # Add stats to peers
+    peers_with_stats = []
+    for peer in peers:
+        peer_id, name, pubkey, privkey, ip = peer
+        stats = peer_stats.get(pubkey, {'rx_bytes': 0, 'tx_bytes': 0, 'last_handshake': 0})
+        peers_with_stats.append((peer_id, name, pubkey, privkey, ip, stats))
+    
+    return render_template("index.html", 
+                         peers=peers_with_stats, 
+                         server_ip=SERVER_IP, 
+                         server_region=server_region,
+                         custom_dns_enabled=custom_dns_enabled)
 
 @app.route("/add", methods=["GET", "POST"])
 @login_required
@@ -468,7 +646,9 @@ def download_config(peer_id):
         f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
     ]
 
-    if WG_CLIENT_DNS:
+    # Add DNS if custom DNS is enabled
+    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
+    if custom_dns_enabled and WG_CLIENT_DNS:
         config_lines.append(f"DNS = {WG_CLIENT_DNS}")
 
     config_lines.append("")
@@ -509,7 +689,9 @@ def show_qr(peer_id):
         f"Address = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
     ]
 
-    if WG_CLIENT_DNS:
+    # Add DNS if custom DNS is enabled
+    custom_dns_enabled = get_setting('custom_dns_enabled', '1') == '1'
+    if custom_dns_enabled and WG_CLIENT_DNS:
         qr_lines.append(f"DNS = {WG_CLIENT_DNS}")
 
     qr_lines.append("")
@@ -601,23 +783,53 @@ def start_adg():
 @login_required
 def test_dns():
     """Test DNS connectivity to AdGuard"""
+    results = {}
+    
     try:
         # Test local DNS
         result = subprocess.run(["dig", "@10.8.0.1", "google.com", "+short"], 
                               capture_output=True, text=True, timeout=5)
-        local_dns = result.stdout.strip() if result.returncode == 0 else f"Failed: {result.stderr}"
+        results['local_dns'] = {
+            'success': result.returncode == 0,
+            'output': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+        }
     except Exception as e:
-        local_dns = f"Error: {e}"
+        results['local_dns'] = {'success': False, 'output': str(e)}
     
     try:
         # Test if AdGuard is listening
         result = subprocess.run(["ss", "-tuln", "|", "grep", ":53"], 
                               shell=True, capture_output=True, text=True, timeout=5)
-        dns_ports = result.stdout.strip() if result.returncode == 0 else f"Failed: {result.stderr}"
+        results['dns_ports'] = {
+            'success': result.returncode == 0 and '10.8.0.1:53' in result.stdout,
+            'output': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+        }
     except Exception as e:
-        dns_ports = f"Error: {e}"
+        results['dns_ports'] = {'success': False, 'output': str(e)}
     
-    return render_template("test_dns.html", local_dns=local_dns, dns_ports=dns_ports)
+    try:
+        # Test AdGuard Home service status
+        result = subprocess.run(["systemctl", "is-active", "AdGuardHome"], 
+                              capture_output=True, text=True, timeout=5)
+        results['adguard_status'] = {
+            'success': result.returncode == 0 and result.stdout.strip() == 'active',
+            'output': result.stdout.strip()
+        }
+    except Exception as e:
+        results['adguard_status'] = {'success': False, 'output': str(e)}
+    
+    try:
+        # Test external DNS resolution
+        result = subprocess.run(["dig", "google.com", "+short"], 
+                              capture_output=True, text=True, timeout=5)
+        results['external_dns'] = {
+            'success': result.returncode == 0 and result.stdout.strip(),
+            'output': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+        }
+    except Exception as e:
+        results['external_dns'] = {'success': False, 'output': str(e)}
+    
+    return render_template("test_dns.html", results=results)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8888)

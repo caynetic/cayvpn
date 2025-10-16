@@ -32,7 +32,11 @@
           </div>
           <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
           <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
-          <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
+          <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53 
+            <span class="badge bg-{{ 'success' if custom_dns_enabled else 'secondary' }}">
+              {{ 'Enabled' if custom_dns_enabled else 'Disabled' }}
+            </span>
+          </p>
         </div>
     </div>
     
@@ -50,6 +54,8 @@
     <div class="d-flex justify-content-between mb-3">
       <a href="/add" class="btn btn-primary">+ Add Peer</a>
       <div>
+        <a href="/settings" class="btn btn-outline-info me-2">Settings</a>
+        <a href="/dns" class="btn btn-outline-success me-2">DNS</a>
         <a href="/server" class="btn btn-info me-2">Server Management</a>
         <a href="/logout" class="btn btn-secondary">Logout</a>
       </div>
@@ -66,19 +72,52 @@
               <th>Name</th>
               <th>Public Key</th>
               <th>IP</th>
+              <th>Data In</th>
+              <th>Data Out</th>
+              <th>Last Seen</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {% for id, name, public_key, privkey, ip in peers %}
+            {% for peer_id, name, public_key, privkey, ip, stats in peers %}
             <tr>
               <td>{{ name }}</td>
-              <td><code>{{ public_key }}</code></td>
+              <td><code>{{ public_key[:16] }}...</code></td>
               <td>{{ ip }}</td>
               <td>
-                <a href="/config/{{ id }}" class="btn btn-sm btn-success">Download Config</a>
-                <a href="/qr/{{ id }}" class="btn btn-sm btn-info">QR Code</a>
-                <a href="/remove/{{ id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
+                {% if stats.rx_bytes %}
+                  {{ (stats.rx_bytes / 1024 / 1024)|round(2) }} MB
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if stats.tx_bytes %}
+                  {{ (stats.tx_bytes / 1024 / 1024)|round(2) }} MB
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if stats.last_handshake and stats.last_handshake > 0 %}
+                  {% set seconds_ago = (stats.last_handshake) %}
+                  {% if seconds_ago < 60 %}
+                    {{ seconds_ago }}s ago
+                  {% elif seconds_ago < 3600 %}
+                    {{ (seconds_ago / 60)|round }}m ago
+                  {% elif seconds_ago < 86400 %}
+                    {{ (seconds_ago / 3600)|round }}h ago
+                  {% else %}
+                    {{ (seconds_ago / 86400)|round }}d ago
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">Never</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/config/{{ peer_id }}" class="btn btn-sm btn-success">Download Config</a>
+                <a href="/qr/{{ peer_id }}" class="btn btn-sm btn-info">QR Code</a>
+                <a href="/remove/{{ peer_id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
               </td>
             </tr>
             {% endfor %}

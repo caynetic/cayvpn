@@ -6,7 +6,10 @@
 <div class="row">
   <div class="col-md-12">
     <h1 class="mb-4">DNS Connectivity Test</h1>
-    <a href="/server" class="btn btn-secondary mb-3">Back to Server Management</a>
+    <div class="d-flex justify-content-between mb-3">
+      <a href="/server" class="btn btn-secondary">Back to Server Management</a>
+      <a href="/dns" class="btn btn-primary">DNS Blocklists</a>
+    </div>
     
     <!-- DNS Test Results -->
     <div class="card mb-4">
@@ -14,20 +17,104 @@
         <h5>DNS Test Results</h5>
       </div>
       <div class="card-body">
-        <h6>Local DNS Query (to 10.8.0.1):</h6>
-        <pre>{{ local_dns }}</pre>
-        
-        <h6>DNS Ports Listening:</h6>
-        <pre>{{ dns_ports }}</pre>
-        
-        <div class="alert alert-info">
-          <strong>Troubleshooting:</strong>
-          <ul>
-            <li>If local DNS query fails, AdGuard Home may not be running or not listening on 10.8.0.1:53</li>
-            <li>Check that AdGuard Home service is active: <code>systemctl status AdGuardHome</code></li>
-            <li>Verify iptables rules allow DNS traffic: <code>iptables -L | grep 53</code></li>
-            <li>Ensure WireGuard interface is up: <code>ip addr show wg0</code></li>
-          </ul>
+        <div class="row">
+          <!-- Local DNS Test -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100 border-{{ 'success' if results.local_dns.success else 'danger' }}">
+              <div class="card-header bg-{{ 'success' if results.local_dns.success else 'danger' }} text-white">
+                <h6 class="mb-0">
+                  <i class="fas fa-{{ 'check-circle' if results.local_dns.success else 'times-circle' }}"></i>
+                  Local DNS (10.8.0.1)
+                </h6>
+              </div>
+              <div class="card-body">
+                <p class="mb-2">Testing DNS resolution via AdGuard Home</p>
+                <code class="d-block mb-2">{{ results.local_dns.output or 'No response' }}</code>
+                <small class="text-muted">dig @10.8.0.1 google.com</small>
+              </div>
+            </div>
+          </div>
+          
+          <!-- DNS Ports Test -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100 border-{{ 'success' if results.dns_ports.success else 'danger' }}">
+              <div class="card-header bg-{{ 'success' if results.dns_ports.success else 'danger' }} text-white">
+                <h6 class="mb-0">
+                  <i class="fas fa-{{ 'check-circle' if results.dns_ports.success else 'times-circle' }}"></i>
+                  DNS Service Status
+                </h6>
+              </div>
+              <div class="card-body">
+                <p class="mb-2">Checking if DNS service is listening on port 53</p>
+                <code class="d-block mb-2">{{ results.dns_ports.output or 'No services found' }}</code>
+                <small class="text-muted">ss -tuln | grep :53</small>
+              </div>
+            </div>
+          </div>
+          
+          <!-- AdGuard Status -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100 border-{{ 'success' if results.adguard_status.success else 'danger' }}">
+              <div class="card-header bg-{{ 'success' if results.adguard_status.success else 'danger' }} text-white">
+                <h6 class="mb-0">
+                  <i class="fas fa-{{ 'check-circle' if results.adguard_status.success else 'times-circle' }}"></i>
+                  AdGuard Home Service
+                </h6>
+              </div>
+              <div class="card-body">
+                <p class="mb-2">Checking AdGuard Home systemd service status</p>
+                <code class="d-block mb-2">{{ results.adguard_status.output or 'Service not found' }}</code>
+                <small class="text-muted">systemctl is-active AdGuardHome</small>
+              </div>
+            </div>
+          </div>
+          
+          <!-- External DNS Test -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100 border-{{ 'success' if results.external_dns.success else 'danger' }}">
+              <div class="card-header bg-{{ 'success' if results.external_dns.success else 'danger' }} text-white">
+                <h6 class="mb-0">
+                  <i class="fas fa-{{ 'check-circle' if results.external_dns.success else 'times-circle' }}"></i>
+                  External DNS
+                </h6>
+              </div>
+              <div class="card-body">
+                <p class="mb-2">Testing external DNS resolution (fallback)</p>
+                <code class="d-block mb-2">{{ results.external_dns.output or 'No response' }}</code>
+                <small class="text-muted">dig google.com</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Troubleshooting Guide -->
+    <div class="card">
+      <div class="card-header">
+        <h5>Troubleshooting Guide</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Common Issues & Solutions</h6>
+            <ul>
+              <li><strong>Local DNS fails:</strong> AdGuard Home may not be running or not listening on 10.8.0.1:53</li>
+              <li><strong>DNS service not found:</strong> Check if AdGuard Home is installed and running</li>
+              <li><strong>AdGuard service inactive:</strong> Start service with <code>sudo systemctl start AdGuardHome</code></li>
+              <li><strong>WireGuard issues:</strong> Ensure wg0 interface is up and routing is correct</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h6>Quick Commands</h6>
+            <ul>
+              <li><code>sudo systemctl status AdGuardHome</code> - Check service status</li>
+              <li><code>sudo systemctl restart AdGuardHome</code> - Restart AdGuard</li>
+              <li><code>ip addr show wg0</code> - Check WireGuard interface</li>
+              <li><code>wg show wg0</code> - Show WireGuard peers and status</li>
+              <li><code>iptables -L | grep 53</code> - Check DNS port forwarding</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
