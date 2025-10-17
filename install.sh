@@ -235,7 +235,7 @@ dns:
   upstream_dns:
     - 127.0.0.1:5053
   filtering_enabled: true
-  cache_size: 1048576
+  cache_size: 2097152
 filters_update_interval: 24
 filters:
   - enabled: true
