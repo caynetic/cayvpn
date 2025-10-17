@@ -247,7 +247,7 @@ filters:
   - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_49.txt
     name: HaGeZi’s Ultimate Blocklist
-  - enabled: true
+  - enabled: false
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt
     name: Phishing Army
   - enabled: true
