@@ -13,6 +13,7 @@
         <a href="https://caynetic.com" target="_blank" rel="noopener noreferrer">
           <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="img-fluid" style="max-height: 100px;">
         </a>
+        <p class="text-muted mt-2">Version {{ version }}</p>
       </div>
     </div>
     {% block content %}{% endblock %}
