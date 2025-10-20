@@ -8,6 +8,9 @@ from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 
+# Version information
+__version__ = "1.0.0"
+
 # Generate secure random secret key if not provided via environment
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 
@@ -48,6 +51,14 @@ HTTPS_PORT = int(os.environ.get('HTTPS_PORT', '8443'))
 if ENABLE_HTTPS:
     app.config['SESSION_COOKIE_SECURE'] = True
     print("✓ HTTPS enabled - secure cookies activated")
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Context processor to make version available to all templates
+@app.context_processor
+def inject_version():
+    return {'version': __version__}
 
 # Security headers
 @app.after_request
