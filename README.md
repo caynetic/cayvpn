@@ -44,3 +44,7 @@ For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤖 Development
+
+This project was developed with the assistance of AI tools, but all code has been reviewed and verified by a professional software engineer.
