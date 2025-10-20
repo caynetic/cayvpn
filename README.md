@@ -43,4 +43,4 @@ For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
 ## 📄 License
 
-Open source - feel free to use and modify!
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
