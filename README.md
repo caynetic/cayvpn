@@ -21,7 +21,7 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 
 That's it! Your VPN server is ready.
 
-## � Features
+## 🔧 Features
 
 - ✅ WireGuard VPN with easy peer management
 - ✅ QR codes for mobile device setup
@@ -38,6 +38,8 @@ If something doesn't work:
 - View logs: `sudo journalctl -u cayvpn -f`
 
 For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
+
+- Get paid support: Visit https://vpn.caynetic.com for $3 lifetime support
 
 ## 📄 License
 
