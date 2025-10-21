@@ -19,12 +19,14 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 
 3. **Connect to your Droplet**:
    
-   **Note**: You cannot connect directly through the DigitalOcean website. You must use SSH from your local terminal.
-   
+   **Option 1 - SSH from your terminal**:
    ```bash
    ssh root@your-droplet-ip
    ```
    (Replace `your-droplet-ip` with the IP address shown in DigitalOcean)
+   
+   **Option 2 - Use DigitalOcean Console**:
+   Click on your Droplet → Click **"Console"** button in the top right to open a browser-based terminal
 
 4. **Install CayVPN**:
    ```bash
