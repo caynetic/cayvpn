@@ -41,7 +41,76 @@ That's it! Your VPN server is ready.
 ### AdGuard Home - DNS Filtering Dashboard
 ![AdGuard Home Dashboard](screenshots/adguard-dashboard.png)
 
-## 🛠️ Troubleshooting
+## � Connecting Your Devices
+
+After setting up your VPN server, you need to connect your devices as clients (peers).
+
+### Adding a New Peer
+
+1. Click the **"+ Add Peer"** button on the dashboard
+2. Enter a name for your device (e.g., "iPhone", "Laptop", "Android")
+3. The system will automatically generate a configuration
+
+### For Mobile Devices (iOS/Android)
+
+**Using QR Code (Easiest Method):**
+
+1. Install the WireGuard app:
+   - **iOS**: [Download from App Store](https://apps.apple.com/us/app/wireguard/id1441195209)
+   - **Android**: [Download from Google Play](https://play.google.com/store/apps/details?id=com.wireguard.android)
+
+2. Open the WireGuard app and tap the **"+"** button
+3. Select **"Create from QR code"**
+4. On your CayVPN dashboard, click the **"QR Code"** button next to your peer
+5. Scan the QR code with your phone
+6. Name the tunnel and toggle it **ON**
+
+### For Desktop/Laptop (Windows, Mac, Linux)
+
+**Using Configuration File:**
+
+1. Install WireGuard:
+   - **Windows**: [Download from wireguard.com](https://www.wireguard.com/install/)
+   - **Mac**: `brew install wireguard-tools` or [download from App Store](https://apps.apple.com/us/app/wireguard/id1451685025)
+   - **Linux**: `sudo apt install wireguard` (Ubuntu/Debian) or `sudo yum install wireguard-tools` (CentOS/RHEL)
+
+2. On your CayVPN dashboard, click **"Download Config"** next to your peer
+3. Save the `.conf` file to your computer
+
+**Importing the Configuration:**
+
+- **Windows/Mac**: Open WireGuard app → Click "Import tunnel(s) from file" → Select your `.conf` file
+- **Linux**: 
+  ```bash
+  sudo cp your-config.conf /etc/wireguard/wg0.conf
+  sudo wg-quick up wg0
+  # To enable on startup:
+  sudo systemctl enable wg-quick@wg0
+  ```
+
+### Activating the VPN
+
+- **Mobile**: Toggle the switch next to your tunnel name
+- **Desktop**: Click "Activate" in the WireGuard app
+- **Linux**: `sudo wg-quick up wg0`
+
+### Verifying Connection
+
+Once connected, you should see:
+- ✅ Active status in the WireGuard app
+- ✅ Data transfer stats on your CayVPN dashboard
+- ✅ "Last Seen" timestamp updates
+- ✅ Your public IP changes to your VPN server's IP (check at [whatismyip.com](https://www.whatismyip.com))
+
+### Managing Multiple Devices
+
+You can add multiple peers for different devices. Each peer gets:
+- Unique configuration
+- Individual bandwidth tracking
+- Separate QR code and config file
+- Real-time connection monitoring
+
+## �🛠️ Troubleshooting
 
 If something doesn't work:
 - **Reboot your server**: `sudo reboot`
