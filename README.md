@@ -4,18 +4,33 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 
 ## 🚀 Quick Start
 
-1. **Get a server** (Ubuntu 24.04 recommended, 20.04+ also compatible):
-   - We recommend DigitalOcean for easy setup: [Get $200 free credit for 2 months](https://m.do.co/c/eb6e30467a3e)
-   - **Bandwidth consideration**: 1TB of monthly bandwidth supports approximately 5 active users
+### Setting Up on DigitalOcean
 
-2. **Clone and install**:
+1. **Create a DigitalOcean account**:
+   - [Get $200 free credit for 2 months](https://m.do.co/c/eb6e30467a3e)
+
+2. **Create a Droplet**:
+   - Click **"Create"** → **"Droplets"**
+   - **Choose Region**: Select the region where you want your VPN to be located (this will be your VPN's geographic location)
+   - **Choose Image**: Select **Ubuntu 24.04 LTS**
+   - **Choose Size**: Start with the basic plan (1GB RAM minimum recommended)
+   - **Authentication**: Choose **SSH Key** (recommended) or **Password**
+   - Click **"Create Droplet"**
+
+3. **Connect to your Droplet**:
+   ```bash
+   ssh root@your-droplet-ip
+   ```
+   (Replace `your-droplet-ip` with the IP address shown in DigitalOcean)
+
+4. **Install CayVPN**:
    ```bash
    git clone https://github.com/caynetic/cayvpn.git
    cd cayvpn
    sudo ./install.sh
    ```
 
-3. **Access your VPN dashboard**:
+5. **Access your VPN dashboard**:
    - Open `https://your-server-ip:8443` in your browser
    - Accept the security warning (self-signed certificate)
    - Set your admin password
