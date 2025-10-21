@@ -65,7 +65,7 @@ That's it! Your VPN server is ready.
 - Monitor your bandwidth usage in your hosting provider's dashboard
 - CayVPN's dashboard shows real-time data transfer per peer to help track usage
 
-## �📸 Screenshots
+## 📸 Screenshots
 
 ### Login Page
 ![Login Page](screenshots/login.png)
@@ -76,7 +76,7 @@ That's it! Your VPN server is ready.
 ### AdGuard Home - DNS Filtering Dashboard
 ![AdGuard Home Dashboard](screenshots/adguard-dashboard.png)
 
-## � Connecting Your Devices
+## Connecting Your Devices
 
 After setting up your VPN server, you need to connect your devices as clients (peers).
 
@@ -145,7 +145,7 @@ You can add multiple peers for different devices. Each peer gets:
 - Separate QR code and config file
 - Real-time connection monitoring
 
-## �🛠️ Troubleshooting
+## 🛠️ Troubleshooting
 
 If something doesn't work:
 - **Reboot your server**: `sudo reboot`
