@@ -4,8 +4,9 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 
 ## 🚀 Quick Start
 
-1. **Get a server** (Ubuntu 20.04+ or Debian 11+ recommended):
+1. **Get a server** (Ubuntu 24.04 recommended, 20.04+ also compatible):
    - We recommend DigitalOcean for easy setup: [Get $200 free credit for 2 months](https://m.do.co/c/eb6e30467a3e)
+   - **Bandwidth consideration**: 1TB of monthly bandwidth supports approximately 5 active users
 
 2. **Clone and install**:
    ```bash
@@ -30,7 +31,21 @@ That's it! Your VPN server is ready.
 - ✅ Secure web interface with HTTPS
 - ✅ Automatic firewall setup
 
-## 📸 Screenshots
+## � Bandwidth & User Capacity
+
+**Planning your VPN server resources:**
+
+- **1TB monthly bandwidth** = ~5 active users per month
+- This estimate assumes typical VPN usage including browsing, streaming, and general internet activity
+- Heavy users (4K streaming, large downloads) will consume more bandwidth
+- Light users (browsing, email) will consume less
+
+**Scaling recommendations:**
+- For more users, choose a plan with higher bandwidth allocation
+- Monitor your bandwidth usage in your hosting provider's dashboard
+- CayVPN's dashboard shows real-time data transfer per peer to help track usage
+
+## �📸 Screenshots
 
 ### Login Page
 ![Login Page](screenshots/login.png)
