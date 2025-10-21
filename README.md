@@ -18,6 +18,9 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
    - Click **"Create Droplet"**
 
 3. **Connect to your Droplet**:
+   
+   **Note**: You cannot connect directly through the DigitalOcean website. You must use SSH from your local terminal.
+   
    ```bash
    ssh root@your-droplet-ip
    ```
@@ -46,12 +49,12 @@ That's it! Your VPN server is ready.
 - ✅ Secure web interface with HTTPS
 - ✅ Automatic firewall setup
 
-## � Bandwidth & User Capacity
+## 📊 Bandwidth & User Capacity
 
-**Planning your VPN server resources:**
+**Important: Plan your server resources carefully**
 
-- **1TB monthly bandwidth** = ~5 active users per month
-- This estimate assumes typical VPN usage including browsing, streaming, and general internet activity
+- **1TB monthly bandwidth comfortably supports up to 5 active users per month**
+- This estimate is based on typical VPN usage including browsing, streaming, and general internet activity
 - Heavy users (4K streaming, large downloads) will consume more bandwidth
 - Light users (browsing, email) will consume less
 
