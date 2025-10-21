@@ -61,29 +61,31 @@ get_location() {
     for api in "${apis[@]}"; do
         local response=$(curl -s --max-time 10 "$api" 2>/dev/null)
         if [[ $? -eq 0 && -n "$response" ]]; then
+            # Initialize variables to prevent "unbound variable" errors
+            local city="" region="" country=""
+            
             # Parse JSON response
-            local city region country
             if echo "$response" | jq -e '.city' >/dev/null 2>&1; then
                 # ipapi.co format
-                city=$(echo "$response" | jq -r '.city // empty')
-                region=$(echo "$response" | jq -r '.region // empty')
-                country=$(echo "$response" | jq -r '.country_name // empty')
+                city=$(echo "$response" | jq -r '.city // empty' 2>/dev/null || echo "")
+                region=$(echo "$response" | jq -r '.region // empty' 2>/dev/null || echo "")
+                country=$(echo "$response" | jq -r '.country_name // empty' 2>/dev/null || echo "")
             elif echo "$response" | jq -e '.region' >/dev/null 2>&1; then
                 # ipinfo.io format
-                city=$(echo "$response" | jq -r '.city // empty')
-                region=$(echo "$response" | jq -r '.region // empty')
-                country=$(echo "$response" | jq -r '.country // empty')
+                city=$(echo "$response" | jq -r '.city // empty' 2>/dev/null || echo "")
+                region=$(echo "$response" | jq -r '.region // empty' 2>/dev/null || echo "")
+                country=$(echo "$response" | jq -r '.country // empty' 2>/dev/null || echo "")
             elif echo "$response" | jq -e '.regionName' >/dev/null 2>&1; then
                 # ip-api.com format
-                city=$(echo "$response" | jq -r '.city // empty')
-                region=$(echo "$response" | jq -r '.regionName // empty')
-                country=$(echo "$response" | jq -r '.country // empty')
+                city=$(echo "$response" | jq -r '.city // empty' 2>/dev/null || echo "")
+                region=$(echo "$response" | jq -r '.regionName // empty' 2>/dev/null || echo "")
+                country=$(echo "$response" | jq -r '.country // empty' 2>/dev/null || echo "")
             fi
             
             local location_parts=()
-            [[ -n "$city" && "$city" != "null" ]] && location_parts+=("$city")
-            [[ -n "$region" && "$region" != "null" ]] && location_parts+=("$region")
-            [[ -n "$country" && "$country" != "null" ]] && location_parts+=("$country")
+            [[ -n "$city" && "$city" != "null" && "$city" != "" ]] && location_parts+=("$city")
+            [[ -n "$region" && "$region" != "null" && "$region" != "" ]] && location_parts+=("$region")
+            [[ -n "$country" && "$country" != "null" && "$country" != "" ]] && location_parts+=("$country")
             
             if [[ ${#location_parts[@]} -gt 0 ]]; then
                 local location=$(IFS=', '; echo "${location_parts[*]}")
@@ -247,7 +249,7 @@ filters:
   - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_49.txt
     name: HaGeZi’s Ultimate Blocklist
-  - enabled: false
+  - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt
     name: Phishing Army
   - enabled: true
