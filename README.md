@@ -30,6 +30,17 @@ That's it! Your VPN server is ready.
 - ✅ Secure web interface with HTTPS
 - ✅ Automatic firewall setup
 
+## 📸 Screenshots
+
+### Login Page
+![Login Page](screenshots/login.png)
+
+### Dashboard - WireGuard Peers Management
+![WireGuard Peers Dashboard](screenshots/dashboard.png)
+
+### AdGuard Home - DNS Filtering Dashboard
+![AdGuard Home Dashboard](screenshots/adguard-dashboard.png)
+
 ## 🛠️ Troubleshooting
 
 If something doesn't work:
