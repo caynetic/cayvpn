@@ -45,11 +45,13 @@ That's it! Your VPN server is ready.
 ## Features
 
 - ✅ WireGuard VPN with easy peer management
+- ✅ Modern, mobile-friendly web dashboard
 - ✅ QR codes for mobile device setup
 - ✅ Real-time bandwidth monitoring
 - ✅ Built-in DNS filtering (AdGuard Home)
 - ✅ Secure web interface with HTTPS
 - ✅ Automatic firewall setup
+- ✅ Easy updates from GitHub
 
 ## Bandwidth & User Capacity
 
@@ -148,13 +150,47 @@ You can add multiple peers for different devices. Each peer gets:
 ## Troubleshooting
 
 If something doesn't work:
+
 - **Reboot your server**: `sudo reboot`
 - Check service status: `sudo systemctl status cayvpn`
 - View logs: `sudo journalctl -u cayvpn -f`
 
 For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
-- Get paid support: Visit https://vpn.caynetic.com for $3 lifetime support
+- Get paid support: Visit <https://vpn.caynetic.com> for $3 lifetime support
+
+## Updating CayVPN
+
+To update your CayVPN installation to the latest version:
+
+```bash
+cd ~/cayvpn  # or wherever you installed CayVPN
+git pull origin main
+sudo systemctl restart cayvpn
+```
+
+**Important**: If you've made local changes to any files (like `install.sh`), you'll need to either:
+
+- **Discard your local changes** (recommended for most users):
+  ```bash
+  git reset --hard HEAD
+  git pull origin main
+  sudo systemctl restart cayvpn
+  ```
+
+- **Or stash your changes** (if you want to keep them):
+  ```bash
+  git stash
+  git pull origin main
+  sudo systemctl restart cayvpn
+  # To restore your changes later: git stash pop
+  ```
+
+After updating, verify the service is running:
+
+```bash
+sudo systemctl status cayvpn
+```
 
 ## License
 
