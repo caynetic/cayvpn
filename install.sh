@@ -239,9 +239,22 @@ PY
 )"
 
 # ---------- AdGuard Config (with filters) ----------
+ADGUARD_TLS_CONFIG=""
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    ADGUARD_TLS_CONFIG="
+tls:
+  enabled: true
+  server_name: ${PUB_IP}
+  force_https: true
+  port_https: 8444
+  certificates: ${SSL_CERT_PATH}
+  private_key: ${SSL_KEY_PATH}"
+fi
+
 cat >/opt/AdGuardHome/AdGuardHome.yaml <<EOF
 bind_host: 0.0.0.0
 bind_port: ${ADGH_ADMIN_PORT}
+${ADGUARD_TLS_CONFIG}
 users:
   - name: ${ADMIN_USER}
     password: ${BCRYPT_HASH}
@@ -354,6 +367,9 @@ iptables -C INPUT -p udp --dport ${WG_PORT} -j ACCEPT 2>/dev/null || iptables -A
 iptables -C INPUT -i lo -p udp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p udp --dport 53 -j ACCEPT
 iptables -C INPUT -i lo -p tcp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p tcp --dport 53 -j ACCEPT
 iptables -C INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    iptables -C INPUT -p tcp --dport 8444 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8444 -j ACCEPT
+fi
 iptables -C INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP
 iptables -C INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP
 netfilter-persistent save
@@ -444,6 +460,12 @@ echo ""
 echo "🔧 Services Status:"
 echo "  - WireGuard: $(systemctl is-active wg-quick@${WG_IFACE})"
 echo "  - AdGuard Home: $(systemctl is-active AdGuardHome)"
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    echo "    - AdGuard HTTPS: https://${PUB_IP}:8444"
+    echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
+else
+    echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
+fi
 echo "  - CayVPN: $(systemctl is-active cayvpn)"
 echo "  - Cloudflared: $(systemctl is-active cloudflared-dns)"
 echo ""

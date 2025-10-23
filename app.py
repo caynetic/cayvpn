@@ -6,8 +6,16 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 import logging
+import bcrypt
 
 app = Flask(__name__)
+
+# Password hashing utilities
+def hash_password(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password, hashed):
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 # Configure logging
 logging.basicConfig(
@@ -71,6 +79,13 @@ if ENABLE_HTTPS:
 @app.context_processor
 def inject_version():
     return {'version': __version__}
+
+# Force HTTPS redirect if enabled
+@app.before_request
+def enforce_https():
+    if ENABLE_HTTPS and not request.is_secure:
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
 
 # Security headers
 @app.after_request
@@ -368,12 +383,12 @@ def set_setting(key, value):
     conn.close()
 
 def load_admin_password():
-    """Load admin password from settings on startup"""
+    """Load admin password hash from settings on startup"""
     global ADMIN_PASS
-    stored_pass = get_setting('admin_password')
-    if stored_pass:
-        ADMIN_PASS = stored_pass
-        print("✓ Admin password loaded from database")
+    stored_hash = get_setting('admin_password')
+    if stored_hash:
+        ADMIN_PASS = stored_hash  # Load hash
+        print("✓ Admin password hash loaded from database")
         return True
     else:
         # No password set - this is first run
@@ -512,11 +527,12 @@ def update_adguard_password(new_password):
 def update_admin_password(new_password):
     """Update admin panel password"""
     global ADMIN_PASS
-    ADMIN_PASS = new_password
+    hashed_pass = hash_password(new_password)
+    ADMIN_PASS = hashed_pass
     
-    # Store in settings database for persistence
-    set_setting('admin_password', new_password)
-    print("✓ Admin panel password updated")
+    # Store hash in settings database for persistence
+    set_setting('admin_password', hashed_pass)
+    print("✓ Admin panel password updated (hashed)")
     return True
 
 def write_wg_conf():
@@ -702,7 +718,7 @@ def settings():
             
             # Validate current password (skip if force password change)
             force_change = session.get("force_password_change", False)
-            if not force_change and current_password != ADMIN_PASS:
+            if not force_change and not verify_password(current_password, ADMIN_PASS):
                 flash("Current password is incorrect!", "error")
                 return redirect(url_for("settings"))
             
@@ -796,7 +812,7 @@ def login():
             return redirect(url_for("index"))
         
         # Normal login
-        if username == ADMIN_USER and password == ADMIN_PASS:
+        if username == ADMIN_USER and verify_password(password, ADMIN_PASS):
             session["logged_in"] = True
             return redirect(url_for("index"))
         else:
@@ -1278,7 +1294,8 @@ def api_peer_stats():
     return jsonify(stats_data)
 
 if __name__ == "__main__":
-    if ENABLE_HTTPS and os.path.exists(SSL_CERT_PATH) and os.path.exists(SSL_KEY_PATH):
+    # Always prefer HTTPS if certificates exist
+    if os.path.exists(SSL_CERT_PATH) and os.path.exists(SSL_KEY_PATH):
         logger.info(f"🔒 Starting HTTPS server on port {HTTPS_PORT}")
         logger.info(f"   Certificate: {SSL_CERT_PATH}")
         logger.info(f"   Private Key: {SSL_KEY_PATH}")
