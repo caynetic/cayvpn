@@ -5,8 +5,20 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
+import logging
 
 app = Flask(__name__)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Logs to stdout/stderr for Gunicorn/systemd
+        logging.FileHandler('/var/log/cayvpn.log', mode='a')  # Optional file logging
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Version information
 __version__ = "1.0.0"
@@ -157,6 +169,7 @@ def get_public_ip():
 def fetch_location_details(ip_address: str) -> str:
     """Fetch location details for an IP address using multiple APIs"""
     if not ip_address or ip_address in ['127.0.0.1', 'localhost']:
+        logger.info("Skipping location detection for local IP")
         return "Local Network"
     
     apis = [
@@ -180,10 +193,11 @@ def fetch_location_details(ip_address: str) -> str:
     for api in apis:
         try:
             result = subprocess.run(['curl', '-s', '--max-time', '10', api['url']], 
-                                  capture_output=True, text=True, check=True)
+                                  capture_output=True, text=True, check=True, timeout=15)
             data = json.loads(result.stdout)
             
             if 'error' in data or data.get('status') == 'fail':
+                logger.warning(f"API {api['url']} returned error: {data}")
                 continue
                 
             location_parts = []
@@ -194,14 +208,23 @@ def fetch_location_details(ip_address: str) -> str:
             
             if location_parts:
                 location = ', '.join(location_parts)
-                print(f"✓ Detected location: {location}")
+                logger.info(f"Detected location: {location} for IP {ip_address}")
                 return location
                 
-        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
-            print(f"⚠ API {api['url']} failed: {e}")
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout fetching location from {api['url']}")
+            continue
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"curl failed for {api['url']}: {e}")
+            continue
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON from {api['url']}: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Unexpected error with {api['url']}: {e}")
             continue
     
-    print("⚠ All location APIs failed, using default")
+    logger.warning(f"All location APIs failed for IP {ip_address}, using default")
     return f"Server Location (IP: {ip_address})"
 
 try:
@@ -210,7 +233,7 @@ try:
     
     if config_ip:
         SERVER_IP = config_ip
-        print(f"✓ Server IP loaded from config: {SERVER_IP}")
+        logger.info(f"Server IP loaded from config: {SERVER_IP}")
     else:
         SERVER_IP = get_public_ip()
         if not SERVER_IP:
@@ -220,29 +243,29 @@ try:
             s.connect(("8.8.8.8", 80))
             SERVER_IP = s.getsockname()[0]
             s.close()
-            print(f"✓ Using local IP: {SERVER_IP}")
+            logger.info(f"Using local IP: {SERVER_IP}")
         else:
-            print(f"✓ Detected Public IP: {SERVER_IP}")
+            logger.info(f"Detected Public IP: {SERVER_IP}")
     
     if config_region:
         SERVER_REGION = config_region
-        print(f"✓ Server region loaded from config: {SERVER_REGION}")
+        logger.info(f"Server region loaded from config: {SERVER_REGION}")
     else:
         # Detect region if not in config
         SERVER_REGION = fetch_location_details(SERVER_IP)
-        print(f"✓ Detected region: {SERVER_REGION}")
+        logger.info(f"Detected region: {SERVER_REGION}")
             
 except Exception as e:
-    print(f"✗ IP detection failed: {type(e).__name__}: {e}")
+    logger.error(f"IP detection failed: {type(e).__name__}: {e}")
     import traceback
     traceback.print_exc()
     SERVER_IP = "127.0.0.1"
     SERVER_REGION = "Localhost"
 
-print(f"\n{'='*50}")
-print(f"Server IP: {SERVER_IP}")
-print(f"Region Info:\n{SERVER_REGION}")
-print(f"{'='*50}\n")
+logger.info(f"\n{'='*50}")
+logger.info(f"Server IP: {SERVER_IP}")
+logger.info(f"Region Info:\n{SERVER_REGION}")
+logger.info(f"{'='*50}\n")
 
 # === Database Setup ===
 def init_db():
@@ -361,20 +384,21 @@ def load_admin_password():
 # Load admin password from database if exists
 password_loaded = load_admin_password()
 if not password_loaded:
-    print("\n" + "="*60)
-    print("🔐 FIRST TIME SETUP REQUIRED")
-    print("="*60)
-    print("Visit the web interface to set your admin password.")
-    print("This password will be used for both CayVPN and AdGuard Home.")
-    print("="*60 + "\n")
+    logger.warning("\n" + "="*60)
+    logger.warning("🔐 FIRST TIME SETUP REQUIRED")
+    logger.warning("="*60)
+    logger.warning("Visit the web interface to set your admin password.")
+    logger.warning("This password will be used for both CayVPN and AdGuard Home.")
+    logger.warning("="*60 + "\n")
 
 def get_peer_stats():
     """Get peer statistics from WireGuard"""
     try:
         result = subprocess.run(["wg", "show", WG_INTERFACE, "dump"], 
-                              capture_output=True, text=True, check=True)
+                              capture_output=True, text=True, check=True, timeout=10)
         lines = result.stdout.strip().split('\n')
         if not lines:
+            logger.warning("No output from wg show dump")
             return {}
         
         stats = {}
@@ -409,9 +433,16 @@ def get_peer_stats():
                     'tx_bytes': tx,
                     'last_handshake': last_handshake
                 }
+        logger.info(f"Retrieved stats for {len(stats)} peers")
         return stats
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout getting peer stats from WireGuard")
+        return {}
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running wg show dump: {e}")
+        return {}
     except Exception as e:
-        print(f"Error getting peer stats: {e}")
+        logger.error(f"Unexpected error getting peer stats: {e}")
         return {}
 
 def update_adguard_password(new_password):
@@ -1148,12 +1179,12 @@ def api_peer_stats():
 
 if __name__ == "__main__":
     if ENABLE_HTTPS and os.path.exists(SSL_CERT_PATH) and os.path.exists(SSL_KEY_PATH):
-        print(f"🔒 Starting HTTPS server on port {HTTPS_PORT}")
-        print(f"   Certificate: {SSL_CERT_PATH}")
-        print(f"   Private Key: {SSL_KEY_PATH}")
+        logger.info(f"🔒 Starting HTTPS server on port {HTTPS_PORT}")
+        logger.info(f"   Certificate: {SSL_CERT_PATH}")
+        logger.info(f"   Private Key: {SSL_KEY_PATH}")
         app.run(host="0.0.0.0", port=HTTPS_PORT, ssl_context=(SSL_CERT_PATH, SSL_KEY_PATH))
     else:
-        print(f"🌐 Starting HTTP server on port 8888")
+        logger.info(f"🌐 Starting HTTP server on port 8888")
         if ENABLE_HTTPS:
-            print("⚠ HTTPS enabled but certificates not found - falling back to HTTP")
+            logger.warning("⚠ HTTPS enabled but certificates not found - falling back to HTTP")
         app.run(host="0.0.0.0", port=8888)

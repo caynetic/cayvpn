@@ -292,6 +292,12 @@ mkdir -p sessions
 chmod 700 sessions
 
 # Create systemd service for CayVPN
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 2 --bind 0.0.0.0:${HTTPS_PORT} --certfile ${SSL_CERT_PATH} --keyfile ${SSL_KEY_PATH} app:app"
+else
+    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 2 --bind 0.0.0.0:8888 app:app"
+fi
+
 cat >/etc/systemd/system/cayvpn.service <<EOF
 [Unit]
 Description=CayVPN Management Interface
@@ -302,7 +308,7 @@ Wants=AdGuardHome.service wg-quick@${WG_IFACE}.service
 Type=simple
 User=$USER
 WorkingDirectory=$(pwd)
-ExecStart=$(pwd)/venv/bin/python app.py
+ExecStart=${EXEC_START}
 Restart=always
 RestartSec=10
 Environment=SERVER_IP=${PUB_IP}
