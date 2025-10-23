@@ -1,112 +1,210 @@
 {% extends "base.html" %}
 
-{% block title %}WireGuard Peers{% endblock %}
+{% block title %}Dashboard - WireGuard Peers{% endblock %}
 
 {% block content %}
-<div class="row">
-  <div class="col-md-12">
-    <h1 class="mb-4">WireGuard Peers</h1>
-    
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="row mb-4">
+      <div class="col-12">
         {% for category, message in messages %}
           <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'danger' }} alert-dismissible fade show" role="alert">
+            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'warning' else 'times-circle' }}"></i>
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
         {% endfor %}
-      {% endif %}
-    {% endwith %}
-    
-    <!-- Server Info -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5>Server Information</h5>
       </div>
-        <div class="card-body">
-          <p class="mb-1"><strong>IP Address:</strong> {{ server_ip }}</p>
-          <p class="mb-1"><strong>Region:</strong> {{ server_region }}</p>
-          <p class="mb-1"><strong>WireGuard Port:</strong> 43210</p>
-          <p class="mb-1"><strong>AdGuard Home UI:</strong> <a href="http://{{ server_ip }}:3000" target="_blank">http://{{ server_ip }}:3000</a></p>
-          <p class="mb-1"><strong>DNS:</strong> {{ server_ip }}:53</p>
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+  <div class="col-md-6 col-lg-3 mb-3">
+    <div class="stats-card">
+      <div class="stat-value">{{ peers|length }}</div>
+      <div class="stat-label">Total Peers</div>
+      <i class="fas fa-users position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3 mb-3">
+    <div class="stats-card">
+      <div class="stat-value">{{ server_region|default('N/A') }}</div>
+      <div class="stat-label">Server Region</div>
+      <i class="fas fa-globe position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3 mb-3">
+    <div class="stats-card">
+      <div class="stat-value">43210</div>
+      <div class="stat-label">WireGuard Port</div>
+      <i class="fas fa-network-wired position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3 mb-3">
+    <div class="stats-card">
+      <div class="stat-value">{{ version|default('1.0.0') }}</div>
+      <div class="stat-label">Version</div>
+      <i class="fas fa-code-branch position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Server Information -->
+<div class="card mb-4 server-info">
+  <div class="card-header">
+    <h5><i class="fas fa-server"></i>Server Information</h5>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-map-marker-alt me-3 text-white-50"></i>
+          <div>
+            <strong>IP Address:</strong><br>
+            <span class="text-white-50">{{ server_ip }}</span>
+          </div>
         </div>
-    </div>
-    
-    <!-- Statistics -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5>Statistics</h5>
       </div>
-      <div class="card-body">
-        <p class="mb-1"><strong>Total Peers:</strong> {{ peers|length }}</p>
-        <!-- Add more stats if available -->
+      <div class="col-md-6 mb-3">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-globe-americas me-3 text-white-50"></i>
+          <div>
+            <strong>Region:</strong><br>
+            <span class="text-white-50">{{ server_region }}</span>
+          </div>
+        </div>
       </div>
-    </div>
-    
-    <div class="d-flex justify-content-between mb-3">
-      <a href="/add" class="btn btn-primary">+ Add Peer</a>
-      <div>
-        <a href="/settings" class="btn btn-outline-info me-2">Settings</a>
-        <a href="http://{{ server_ip }}:3000" class="btn btn-outline-success me-2" target="_blank">AdGuard Home</a>
-        <a href="/server" class="btn btn-info me-2">Server Management</a>
-        <a href="/logout" class="btn btn-secondary">Logout</a>
+      <div class="col-md-6 mb-3">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-shield-alt me-3 text-white-50"></i>
+          <div>
+            <strong>DNS:</strong><br>
+            <span class="text-white-50">{{ server_ip }}:53</span>
+          </div>
+        </div>
       </div>
-    </div>
-    
-    <div class="card">
-      <div class="card-header">
-        <h5>Peers List</h5>
-      </div>
-      <div class="card-body">
-        <table class="table table-striped">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Public Key</th>
-              <th>IP</th>
-              <th>Data In</th>
-              <th>Data Out</th>
-              <th>Last Seen</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-                        {% for peer_id, name, public_key, privkey, ip, stats in peers %}
-            <tr data-peer-id="{{ peer_id }}">
-              <td>{{ name }}</td>
-              <td><code>{{ public_key[:16] }}...</code></td>
-              <td>{{ ip }}</td>
-              <td>
-                {% if stats.rx_bytes %}
-                  {{ (stats.rx_bytes / 1024 / 1024)|round(2) }} MB
-                {% else %}
-                  <span class="text-muted">-</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if stats.tx_bytes %}
-                  {{ (stats.tx_bytes / 1024 / 1024)|round(2) }} MB
-                {% else %}
-                  <span class="text-muted">-</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="text-muted">Loading...</span>
-              </td>
-              <td>
-                <a href="/config/{{ peer_id }}" class="btn btn-sm btn-success">Download Config</a>
-                <a href="/qr/{{ peer_id }}" class="btn btn-sm btn-info">QR Code</a>
-                <a href="/remove/{{ peer_id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this peer?')">Remove</a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="col-md-6 mb-3">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-external-link-alt me-3 text-white-50"></i>
+          <div>
+            <strong>AdGuard Home:</strong><br>
+            <a href="http://{{ server_ip }}:3000" target="_blank" class="text-white text-decoration-none">
+              http://{{ server_ip }}:3000 <i class="fas fa-external-link-alt ms-1"></i>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Action Buttons -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div class="d-flex flex-wrap gap-2">
+    <a href="/add" class="btn btn-primary">
+      <i class="fas fa-plus me-2"></i>Add Peer
+    </a>
+    <form method="POST" action="/import_peers" style="display: inline;">
+      <button type="submit" class="btn btn-outline-primary" onclick="return confirm('This will import any peers found in the WireGuard config that aren\'t already in the database. Continue?')">
+        <i class="fas fa-upload me-2"></i>Import Peers
+      </button>
+    </form>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="/test_dns" class="btn btn-outline-info">
+      <i class="fas fa-dna me-2"></i>Test DNS
+    </a>
+  </div>
+</div>
+
+<!-- Peers List -->
+<div class="card">
+  <div class="card-header">
+    <h5><i class="fas fa-users"></i>WireGuard Peers</h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th><i class="fas fa-user me-2"></i>Name</th>
+            <th><i class="fas fa-key me-2"></i>Public Key</th>
+            <th><i class="fas fa-network-wired me-2"></i>IP</th>
+            <th><i class="fas fa-arrow-down me-2"></i>Data In</th>
+            <th><i class="fas fa-arrow-up me-2"></i>Data Out</th>
+            <th><i class="fas fa-clock me-2"></i>Last Seen</th>
+            <th><i class="fas fa-cogs me-2"></i>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for peer_id, name, public_key, privkey, ip, stats in peers %}
+          <tr data-peer-id="{{ peer_id }}">
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                  <i class="fas fa-user text-white" style="font-size: 0.75rem;"></i>
+                </div>
+                <strong>{{ name }}</strong>
+              </div>
+            </td>
+            <td>
+              <code class="bg-light px-2 py-1 rounded">{{ public_key[:16] }}...</code>
+            </td>
+            <td>
+              <span class="badge bg-secondary">{{ ip }}</span>
+            </td>
+            <td>
+              {% if stats.rx_bytes %}
+                <span class="text-success fw-bold">{{ (stats.rx_bytes / 1024 / 1024)|round(2) }} MB</span>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if stats.tx_bytes %}
+                <span class="text-info fw-bold">{{ (stats.tx_bytes / 1024 / 1024)|round(2) }} MB</span>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="text-muted loading">Loading...</span>
+            </td>
+            <td>
+              <div class="peer-actions">
+                <a href="/config/{{ peer_id }}" class="btn btn-success btn-sm" title="Download Config">
+                  <i class="fas fa-download"></i>
+                </a>
+                <a href="/qr/{{ peer_id }}" class="btn btn-info btn-sm" title="QR Code">
+                  <i class="fas fa-qrcode"></i>
+                </a>
+                <a href="/remove/{{ peer_id }}" class="btn btn-danger btn-sm" title="Remove Peer"
+                   onclick="return confirm('Are you sure you want to remove this peer?')">
+                  <i class="fas fa-trash"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if peers|length == 0 %}
+<div class="text-center mt-5">
+  <i class="fas fa-users fa-4x text-muted mb-3"></i>
+  <h4 class="text-muted">No peers configured yet</h4>
+  <p class="text-muted">Get started by adding your first WireGuard peer.</p>
+  <a href="/add" class="btn btn-primary">
+    <i class="fas fa-plus me-2"></i>Add Your First Peer
+  </a>
+</div>
+{% endif %}
 
 <script>
 function updatePeerStats() {
@@ -120,9 +218,12 @@ function updatePeerStats() {
           // Update data usage columns (Data In, Data Out, Last Seen)
           const cells = row.querySelectorAll('td');
           if (cells.length >= 7) {
-            cells[3].innerHTML = peer.rx_bytes > 0 ? `${peer.rx_bytes} MB` : '<span class="text-muted">-</span>';
-            cells[4].innerHTML = peer.tx_bytes > 0 ? `${peer.tx_bytes} MB` : '<span class="text-muted">-</span>';
-            cells[5].innerHTML = peer.last_seen !== 'Never' ? peer.last_seen : '<span class="text-muted">Never</span>';
+            // Data In (index 3)
+            cells[3].innerHTML = peer.rx_bytes > 0 ? `<span class="text-success fw-bold">${peer.rx_bytes} MB</span>` : '<span class="text-muted">-</span>';
+            // Data Out (index 4)
+            cells[4].innerHTML = peer.tx_bytes > 0 ? `<span class="text-info fw-bold">${peer.tx_bytes} MB</span>` : '<span class="text-muted">-</span>';
+            // Last Seen (index 5)
+            cells[5].innerHTML = peer.last_seen !== 'Never' ? `<span class="text-dark">${peer.last_seen}</span>` : '<span class="text-muted">Never</span>';
           }
         }
       });

@@ -5,19 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}WireGuard Manager{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
 <body class="bg-light">
-  <div class="container mt-5">
-    <div class="row">
-      <div class="col-md-12 text-center mb-4">
-        <a href="https://caynetic.com" target="_blank" rel="noopener noreferrer">
-          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="img-fluid" style="max-height: 100px;">
-        </a>
-        <p class="text-muted mt-2">Version {{ version }}</p>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="/">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="me-2" style="height: 40px; width: auto;">
+        <span class="fw-bold">CayVPN</span>
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/add"><i class="fas fa-plus me-1"></i>Add Peer</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/server"><i class="fas fa-server me-1"></i>Server</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a>
+          </li>
+        </ul>
+
+        <ul class="navbar-nav">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-external-link-alt me-1"></i>Services
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="http://{{ server_ip }}:3000" target="_blank"><i class="fas fa-shield-alt me-2"></i>AdGuard Home</a></li>
+              <li><a class="dropdown-item" href="/test_dns"><i class="fas fa-dna me-2"></i>Test DNS</a></li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a>
+          </li>
+        </ul>
       </div>
     </div>
-    {% block content %}{% endblock %}
-  </div>
+  </nav>
+
+  <main class="container-fluid py-4">
+    <div class="row justify-content-center">
+      <div class="col-12 col-lg-10 col-xl-9">
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
