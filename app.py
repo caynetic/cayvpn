@@ -742,8 +742,12 @@ def settings():
                 current_ip = get_public_ip()
                 if current_ip:
                     detected_region = fetch_location_details(current_ip)
-                    set_setting('server_region', detected_region)
-                    flash(f"Region auto-detected: {detected_region}", "success")
+                    # Only update if we got actual location data, not the fallback message
+                    if detected_region and not detected_region.startswith("Server Location (IP:"):
+                        set_setting('server_region', detected_region)
+                        flash(f"Region auto-detected: {detected_region}", "success")
+                    else:
+                        flash("Could not detect server location. All geolocation APIs failed or are rate-limited. Please try again later or enter manually.", "warning")
                 else:
                     flash("Could not detect public IP for region detection", "warning")
             except Exception as e:
@@ -831,6 +835,70 @@ def index():
                          server_ip=SERVER_IP, 
                          server_region=server_region)
 
+@app.route("/add", methods=["GET", "POST"])
+@login_required
+def add_peer():
+    """Add a new WireGuard peer"""
+    if request.method == "POST":
+        try:
+            name = request.form.get("name", "").strip()
+            
+            # Input validation
+            if not name:
+                flash("Peer name is required", "error")
+                return render_template("add_peer.html")
+            
+            if len(name) > 100:
+                flash("Peer name must be 100 characters or less", "error")
+                return render_template("add_peer.html")
+            
+            # Generate keys
+            priv_key_result = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True)
+            priv_key = priv_key_result.stdout.strip()
+            
+            pub_key_result = subprocess.run(["wg", "pubkey"], input=priv_key, capture_output=True, text=True, check=True)
+            pub_key = pub_key_result.stdout.strip()
+            
+            # Get next available IP
+            ip = get_next_ip()
+            
+            # Add to database
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            try:
+                cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
+                           (name, pub_key, priv_key, ip))
+                conn.commit()
+                peer_id = cur.lastrowid
+                
+                logger.info(f"Added new peer '{name}' with IP {ip}")
+                
+                # Update WireGuard config
+                if write_wg_conf():
+                    flash(f"Peer '{name}' added successfully! IP: {ip}", "success")
+                else:
+                    flash(f"Peer '{name}' added to database but WireGuard config update failed", "warning")
+                
+                return redirect(url_for("index"))
+                
+            except sqlite3.IntegrityError:
+                flash("A peer with this public key already exists", "error")
+                return render_template("add_peer.html")
+            finally:
+                conn.close()
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error generating WireGuard keys: {e}")
+            flash("Failed to generate WireGuard keys. Is WireGuard installed?", "error")
+            return render_template("add_peer.html")
+        except Exception as e:
+            logger.error(f"Error adding peer: {type(e).__name__}: {e}")
+            flash(f"Failed to add peer: {str(e)}", "error")
+            return render_template("add_peer.html")
+    
+    # GET request - show the form
+    return render_template("add_peer.html")
+
 @app.route("/import_peers", methods=["POST"])
 @login_required
 def import_peers():
@@ -858,6 +926,9 @@ def import_peers():
                     peers_in_config.append(current_peer)
                 current_peer = {}
                 in_peer_section = True
+            elif line.startswith('# ') and in_peer_section and 'name' not in current_peer:
+                # Use comment as name if available (comment before PublicKey)
+                current_peer['name'] = line[2:].strip()
             elif line.startswith('PublicKey = '):
                 current_peer['public_key'] = line.split(' = ', 1)[1]
             elif line.startswith('AllowedIPs = '):
@@ -866,9 +937,6 @@ def import_peers():
                 if '/' in allowed_ips:
                     ip = allowed_ips.split('/')[0]
                     current_peer['ip'] = ip
-            elif line.startswith('# ') and 'public_key' not in current_peer:
-                # Use comment as name if available
-                current_peer['name'] = line[2:].strip()
         
         if current_peer:
             peers_in_config.append(current_peer)
@@ -877,35 +945,43 @@ def import_peers():
         existing_pubkeys = {pubkey for _, _, pubkey, _, _ in get_peers()}
         
         # Import new peers
-        for peer in peers_in_config:
-            pubkey = peer.get('public_key')
-            if not pubkey or pubkey in existing_pubkeys:
-                continue
-            
-            name = peer.get('name', f"Imported Peer {imported_count + 1}")
-            ip = peer.get('ip')
-            
-            if not ip:
-                # Skip peers without IP
-                continue
-            
-            # Check if IP is already used
-            existing_ips = {ip for _, _, _, _, ip in get_peers()}
-            if ip in existing_ips:
-                # Find next available IP
-                ip = get_next_ip()
-            
-            # Add to database (no private key for imported peers)
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
-                       (name, pubkey, None, ip))
-            conn.commit()
-            peer_id = cur.lastrowid
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        
+        try:
+            for peer in peers_in_config:
+                pubkey = peer.get('public_key')
+                if not pubkey or pubkey in existing_pubkeys:
+                    continue
+                
+                name = peer.get('name', f"Imported Peer {imported_count + 1}")
+                ip = peer.get('ip')
+                
+                if not ip:
+                    # Skip peers without IP
+                    logger.warning(f"Skipping peer '{name}' - no IP address found")
+                    continue
+                
+                # Check if IP is already used
+                existing_ips = {ip for _, _, _, _, ip in get_peers()}
+                if ip in existing_ips:
+                    # Find next available IP
+                    old_ip = ip
+                    ip = get_next_ip()
+                    logger.info(f"IP {old_ip} already in use, assigning {ip} to peer '{name}'")
+                
+                # Add to database (no private key for imported peers)
+                try:
+                    cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
+                               (name, pubkey, None, ip))
+                    conn.commit()
+                    imported_count += 1
+                    logger.info(f"✓ Imported peer '{name}' with IP {ip}")
+                except sqlite3.IntegrityError as ie:
+                    logger.warning(f"Skipping peer '{name}' - already exists in database")
+                    continue
+        finally:
             conn.close()
-            
-            imported_count += 1
-            print(f"✓ Imported peer '{name}' with IP {ip}")
         
         if imported_count > 0:
             # Update WireGuard config
