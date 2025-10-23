@@ -407,9 +407,9 @@ echo "================================="
 
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     echo "🔒 CayVPN Web Interface: https://${PUB_IP}:${HTTPS_PORT}"
-    echo "🔓 HTTP Fallback: http://${PUB_IP}:8888"
+    echo "🔓 HTTP Fallback: http://${PUB_IP}:8888 (only if enabled)"
 else
-    echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888"
+    echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888 (only if enabled)"
 fi
 
 echo "🔐 Initial Setup: Visit the web interface to set your admin password"
