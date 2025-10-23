@@ -146,6 +146,14 @@ if [[ ! -f /etc/wireguard/server.key ]]; then
   cat /etc/wireguard/server.key | wg pubkey > /etc/wireguard/server.pub
 fi
 
+# Preserve existing peers if config exists
+PRESERVED_PEERS=""
+if [[ -f /etc/wireguard/${WG_IFACE}.conf ]]; then
+    echo "🔄 Preserving existing WireGuard peers..."
+    # Extract all content from the first [Peer] section onwards
+    PRESERVED_PEERS=$(sed -n '/^\[Peer\]/,$p' /etc/wireguard/${WG_IFACE}.conf)
+fi
+
 cat >/etc/wireguard/${WG_IFACE}.conf <<EOF
 [Interface]
 Address = ${WG_SUBNET_V4}
@@ -153,6 +161,14 @@ ListenPort = ${WG_PORT}
 PrivateKey = $(cat /etc/wireguard/server.key)
 SaveConfig = true
 EOF
+
+# Append preserved peers if any
+if [[ -n "$PRESERVED_PEERS" ]]; then
+    echo "" >> /etc/wireguard/${WG_IFACE}.conf
+    echo "$PRESERVED_PEERS" >> /etc/wireguard/${WG_IFACE}.conf
+    echo "✓ Preserved $(echo "$PRESERVED_PEERS" | grep -c "\[Peer\]") peer(s)"
+fi
+
 chmod 600 /etc/wireguard/server.key /etc/wireguard/${WG_IFACE}.conf
 
 cat >/etc/sysctl.d/99-wireguard.conf <<EOF
@@ -401,6 +417,14 @@ echo ""
 echo "📡 WireGuard: ${WG_IFACE} UDP ${WG_PORT} (${WG_SUBNET_V4})"
 echo "🛡️ DNS Server: ${WG_GW_IP}:53"
 echo "📍 Server Region: ${SERVER_REGION}"
+
+if [[ -n "$PRESERVED_PEERS" ]]; then
+    echo ""
+    echo "⚠️  NOTICE: Existing WireGuard peers were preserved in the config."
+    echo "   To manage them via the web interface, you may need to re-add them manually"
+    echo "   or run the app to sync the database."
+fi
+
 echo ""
 echo "🔧 Services Status:"
 echo "  - WireGuard: $(systemctl is-active wg-quick@${WG_IFACE})"
