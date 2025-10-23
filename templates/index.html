@@ -26,28 +26,24 @@
     <div class="stats-card">
       <div class="stat-value">{{ peers|length }}</div>
       <div class="stat-label">Total Peers</div>
-      <i class="fas fa-users position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
     </div>
   </div>
   <div class="col-md-6 col-lg-3 mb-3">
     <div class="stats-card">
-      <div class="stat-value">{{ server_region|default('N/A') }}</div>
+      <div class="stat-value text-truncate" style="font-size: 1.25rem;">{{ server_region|default('N/A') }}</div>
       <div class="stat-label">Server Region</div>
-      <i class="fas fa-globe position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
     </div>
   </div>
   <div class="col-md-6 col-lg-3 mb-3">
     <div class="stats-card">
       <div class="stat-value">43210</div>
       <div class="stat-label">WireGuard Port</div>
-      <i class="fas fa-network-wired position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
     </div>
   </div>
   <div class="col-md-6 col-lg-3 mb-3">
     <div class="stats-card">
       <div class="stat-value">{{ version|default('1.0.0') }}</div>
       <div class="stat-label">Version</div>
-      <i class="fas fa-code-branch position-absolute top-50 end-0 translate-middle-y opacity-25" style="font-size: 3rem;"></i>
     </div>
   </div>
 </div>
@@ -55,44 +51,44 @@
 <!-- Server Information -->
 <div class="card mb-4 server-info">
   <div class="card-header">
-    <h5><i class="fas fa-server"></i>Server Information</h5>
+    <h5><i class="fas fa-server me-2"></i>Server Information</h5>
   </div>
   <div class="card-body">
     <div class="row">
       <div class="col-md-6 mb-3">
         <div class="d-flex align-items-center">
-          <i class="fas fa-map-marker-alt me-3 text-white-50"></i>
+          <i class="fas fa-map-marker-alt me-3 text-muted"></i>
           <div>
             <strong>IP Address:</strong><br>
-            <span class="text-white-50">{{ server_ip }}</span>
+            <span class="text-muted">{{ server_ip }}</span>
           </div>
         </div>
       </div>
       <div class="col-md-6 mb-3">
         <div class="d-flex align-items-center">
-          <i class="fas fa-globe-americas me-3 text-white-50"></i>
+          <i class="fas fa-globe-americas me-3 text-muted"></i>
           <div>
             <strong>Region:</strong><br>
-            <span class="text-white-50">{{ server_region }}</span>
+            <span class="text-muted text-truncate d-inline-block" style="max-width: 300px;">{{ server_region }}</span>
           </div>
         </div>
       </div>
       <div class="col-md-6 mb-3">
         <div class="d-flex align-items-center">
-          <i class="fas fa-shield-alt me-3 text-white-50"></i>
+          <i class="fas fa-shield-alt me-3 text-muted"></i>
           <div>
             <strong>DNS:</strong><br>
-            <span class="text-white-50">{{ server_ip }}:53</span>
+            <span class="text-muted">{{ server_ip }}:53</span>
           </div>
         </div>
       </div>
       <div class="col-md-6 mb-3">
         <div class="d-flex align-items-center">
-          <i class="fas fa-external-link-alt me-3 text-white-50"></i>
+          <i class="fas fa-external-link-alt me-3 text-muted"></i>
           <div>
             <strong>AdGuard Home:</strong><br>
-            <a href="http://{{ server_ip }}:3000" target="_blank" class="text-white text-decoration-none">
-              http://{{ server_ip }}:3000 <i class="fas fa-external-link-alt ms-1"></i>
+            <a href="http://{{ server_ip }}:3000" target="_blank" class="text-primary text-decoration-none">
+              http://{{ server_ip }}:3000 <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
             </a>
           </div>
         </div>
@@ -123,20 +119,20 @@
 <!-- Peers List -->
 <div class="card">
   <div class="card-header">
-    <h5><i class="fas fa-users"></i>WireGuard Peers</h5>
+    <h5><i class="fas fa-users me-2"></i>WireGuard Peers</h5>
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover mb-0">
         <thead>
           <tr>
-            <th><i class="fas fa-user me-2"></i>Name</th>
-            <th><i class="fas fa-key me-2"></i>Public Key</th>
-            <th><i class="fas fa-network-wired me-2"></i>IP</th>
-            <th><i class="fas fa-arrow-down me-2"></i>Data In</th>
-            <th><i class="fas fa-arrow-up me-2"></i>Data Out</th>
-            <th><i class="fas fa-clock me-2"></i>Last Seen</th>
-            <th><i class="fas fa-cogs me-2"></i>Actions</th>
+            <th>Name</th>
+            <th>Public Key</th>
+            <th>IP Address</th>
+            <th>Data In</th>
+            <th>Data Out</th>
+            <th>Last Seen</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -144,14 +140,12 @@
           <tr data-peer-id="{{ peer_id }}">
             <td>
               <div class="d-flex align-items-center">
-                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
-                  <i class="fas fa-user text-white" style="font-size: 0.75rem;"></i>
-                </div>
+                <i class="fas fa-user-circle text-primary me-2" style="font-size: 1.5rem;"></i>
                 <strong>{{ name }}</strong>
               </div>
             </td>
             <td>
-              <code class="bg-light px-2 py-1 rounded">{{ public_key[:16] }}...</code>
+              <code class="bg-light px-2 py-1 rounded" style="font-size: 0.8rem;">{{ public_key[:16] }}...</code>
             </td>
             <td>
               <span class="badge bg-secondary">{{ ip }}</span>
@@ -176,14 +170,14 @@
             <td>
               <div class="peer-actions">
                 <a href="/config/{{ peer_id }}" class="btn btn-success btn-sm" title="Download Config">
-                  <i class="fas fa-download"></i>
+                  <i class="fas fa-download"></i> Config
                 </a>
                 <a href="/qr/{{ peer_id }}" class="btn btn-info btn-sm" title="QR Code">
-                  <i class="fas fa-qrcode"></i>
+                  <i class="fas fa-qrcode"></i> QR
                 </a>
                 <a href="/remove/{{ peer_id }}" class="btn btn-danger btn-sm" title="Remove Peer"
                    onclick="return confirm('Are you sure you want to remove this peer?')">
-                  <i class="fas fa-trash"></i>
+                  <i class="fas fa-trash"></i> Remove
                 </a>
               </div>
             </td>
