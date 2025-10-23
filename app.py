@@ -15,7 +15,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),  # Logs to stdout/stderr for Gunicorn/systemd
-        logging.FileHandler('/var/log/cayvpn.log', mode='a')  # Optional file logging
+        logging.FileHandler('cayvpn.log', mode='a')  # Local file logging
     ]
 )
 logger = logging.getLogger(__name__)
@@ -42,7 +42,10 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 
-# Initialize CSRF protection
+# Disable CSRF protection
+app.config['WTF_CSRF_ENABLED'] = False
+
+# Initialize CSRF protection (disabled)
 csrf = CSRFProtect(app)
 
 # Secure session configuration
@@ -63,9 +66,6 @@ HTTPS_PORT = int(os.environ.get('HTTPS_PORT', '8443'))
 if ENABLE_HTTPS:
     app.config['SESSION_COOKIE_SECURE'] = True
     print("✓ HTTPS enabled - secure cookies activated")
-
-# Initialize CSRF protection
-csrf = CSRFProtect(app)
 
 # Context processor to make version available to all templates
 @app.context_processor
@@ -101,7 +101,8 @@ def add_security_headers(response):
 # WG_POSTDOWN=""                      # PostDown command for iptables
 
 DB_PATH = "wg.db"
-WG_INTERFACE = os.environ.get("WG_INTERFACE", "wg0")
+# WireGuard configuration paths
+WG_INTERFACE = "wg0"
 WG_DIR = "/etc/wireguard"
 WG_CONF = os.path.join(WG_DIR, f"{WG_INTERFACE}.conf")
 WG_PORT = int(os.environ.get("WG_PORT", "43210"))
@@ -125,7 +126,7 @@ SERVER_REGION = "Unknown"
 
 def get_server_info():
     """Get server info from config file or detect automatically"""
-    config_file = "/etc/wireguard/server_info.conf"
+    config_file = os.path.join(WG_DIR, "server_info.conf")
     
     # Try to read from config file first
     if os.path.exists(config_file):
@@ -830,76 +831,99 @@ def index():
                          server_ip=SERVER_IP, 
                          server_region=server_region)
 
-@app.route("/add", methods=["GET", "POST"])
+@app.route("/import_peers", methods=["POST"])
 @login_required
-def add_peer():
-    if request.method == "POST":
-        try:
-            name = request.form.get("name", "").strip()
+def import_peers():
+    """Import peers from WireGuard config file that aren't already in database"""
+    try:
+        imported_count = 0
+        
+        # Read the WireGuard config
+        if not os.path.exists(WG_CONF):
+            flash("WireGuard config file not found", "error")
+            return redirect(url_for("index"))
+        
+        with open(WG_CONF, 'r') as f:
+            config_content = f.read()
+        
+        # Parse peers from config
+        peers_in_config = []
+        current_peer = {}
+        in_peer_section = False
+        
+        for line in config_content.split('\n'):
+            line = line.strip()
+            if line == '[Peer]':
+                if current_peer:
+                    peers_in_config.append(current_peer)
+                current_peer = {}
+                in_peer_section = True
+            elif line.startswith('PublicKey = '):
+                current_peer['public_key'] = line.split(' = ', 1)[1]
+            elif line.startswith('AllowedIPs = '):
+                allowed_ips = line.split(' = ', 1)[1]
+                # Extract IP from something like 10.8.0.2/32
+                if '/' in allowed_ips:
+                    ip = allowed_ips.split('/')[0]
+                    current_peer['ip'] = ip
+            elif line.startswith('# ') and 'public_key' not in current_peer:
+                # Use comment as name if available
+                current_peer['name'] = line[2:].strip()
+        
+        if current_peer:
+            peers_in_config.append(current_peer)
+        
+        # Get existing peers from DB
+        existing_pubkeys = {pubkey for _, _, pubkey, _, _ in get_peers()}
+        
+        # Import new peers
+        for peer in peers_in_config:
+            pubkey = peer.get('public_key')
+            if not pubkey or pubkey in existing_pubkeys:
+                continue
             
-            # Input validation
-            if not name:
-                return render_template("add_peer.html", error="Peer name is required")
+            name = peer.get('name', f"Imported Peer {imported_count + 1}")
+            ip = peer.get('ip')
             
-            if len(name) > 50:
-                return render_template("add_peer.html", error="Peer name must be 50 characters or less")
+            if not ip:
+                # Skip peers without IP
+                continue
             
-            # Allow only alphanumeric characters, spaces, hyphens, and underscores
-            if not re.match(r'^[a-zA-Z0-9\s\-_]+$', name):
-                return render_template("add_peer.html", error="Peer name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed")
+            # Check if IP is already used
+            existing_ips = {ip for _, _, _, _, ip in get_peers()}
+            if ip in existing_ips:
+                # Find next available IP
+                ip = get_next_ip()
             
-            # Check for duplicate names
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM peers WHERE name = ?", (name,))
-            if cur.fetchone():
-                conn.close()
-                return render_template("add_peer.html", error=f"Peer name '{name}' already exists")
-            conn.close()
-            
-            ip = get_next_ip()
-            print(f"Adding new peer '{name}' with IP {ip}")
-            
-            # Generate keys using safe subprocess calls
-            priv_key_result = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True)
-            priv_key = priv_key_result.stdout.strip()
-            
-            pub_key_result = subprocess.run(["wg", "pubkey"], input=priv_key, capture_output=True, text=True, check=True)
-            pub_key = pub_key_result.stdout.strip()
-            
-            print(f"Generated keys for {name}")
-
+            # Add to database (no private key for imported peers)
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
             cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
-                       (name, pub_key, priv_key, ip))
+                       (name, pubkey, None, ip))
             conn.commit()
             peer_id = cur.lastrowid
             conn.close()
             
-            print(f"✓ Peer '{name}' added to database (ID: {peer_id})")
-
+            imported_count += 1
+            print(f"✓ Imported peer '{name}' with IP {ip}")
+        
+        if imported_count > 0:
+            # Update WireGuard config
             if write_wg_conf():
-                print(f"✓ WireGuard config updated successfully")
-                flash(f"Peer '{name}' added successfully!", "success")
-                return redirect(url_for("index"))
+                flash(f"Successfully imported {imported_count} peer(s) from config", "success")
             else:
-                # Config update failed, remove the peer from DB
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                cur.execute("DELETE FROM peers WHERE id=?", (peer_id,))
-                conn.commit()
-                conn.close()
-                print(f"✗ Config update failed, removed peer from database")
-                flash("Failed to update WireGuard configuration", "error")
-                return redirect(url_for("index"))
-        except Exception as e:
-            print(f"✗ Error adding peer: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
-            return render_template("add_peer.html", error=f"Failed to add peer: {str(e)}")
-    
-    return render_template("add_peer.html")
+                flash(f"Imported {imported_count} peer(s) but failed to update WireGuard config", "warning")
+        else:
+            flash("No new peers found to import", "info")
+        
+        return redirect(url_for("index"))
+        
+    except Exception as e:
+        print(f"✗ Error importing peers: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f"Failed to import peers: {str(e)}", "error")
+        return redirect(url_for("index"))
 
 @app.route("/remove/<int:peer_id>")
 @login_required

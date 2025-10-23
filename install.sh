@@ -290,6 +290,12 @@ if [[ ! -d ".git" ]]; then
     exit 1
 fi
 
+# Backup existing settings if DB exists
+if [[ -f "wg.db" ]]; then
+    echo "💾 Backing up existing settings..."
+    sqlite3 wg.db "SELECT 'INSERT OR IGNORE INTO settings (key, value) VALUES (''' || key || ''', ''' || value || ''');' FROM settings;" > settings_backup.sql
+fi
+
 # Update repository
 git pull origin main
 
@@ -396,6 +402,15 @@ fi
 # ---------- Start CayVPN Service ----------
 echo "🚀 Starting CayVPN service..."
 systemctl start cayvpn
+
+# Restore settings if backup exists
+if [[ -f "settings_backup.sql" ]]; then
+    echo "🔄 Restoring settings..."
+    sleep 5  # Wait for DB to be created
+    sqlite3 wg.db < settings_backup.sql
+    rm settings_backup.sql
+    echo "✓ Settings restored"
+fi
 
 # Clean up
 rm -rf "$tmpdir"
