@@ -2,7 +2,7 @@
 
 A simple, secure VPN management system with WireGuard, DNS filtering, and a web interface. Get your VPN server running in minutes!
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Setting Up on DigitalOcean
 
@@ -42,7 +42,7 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 
 That's it! Your VPN server is ready.
 
-## 🔧 Features
+## Features
 
 - ✅ WireGuard VPN with easy peer management
 - ✅ QR codes for mobile device setup
@@ -51,7 +51,7 @@ That's it! Your VPN server is ready.
 - ✅ Secure web interface with HTTPS
 - ✅ Automatic firewall setup
 
-## 📊 Bandwidth & User Capacity
+## Bandwidth & User Capacity
 
 **Important: Plan your server resources carefully**
 
@@ -65,7 +65,7 @@ That's it! Your VPN server is ready.
 - Monitor your bandwidth usage in your hosting provider's dashboard
 - CayVPN's dashboard shows real-time data transfer per peer to help track usage
 
-## �📸 Screenshots
+## Screenshots
 
 ### Login Page
 ![Login Page](screenshots/login.png)
@@ -76,7 +76,7 @@ That's it! Your VPN server is ready.
 ### AdGuard Home - DNS Filtering Dashboard
 ![AdGuard Home Dashboard](screenshots/adguard-dashboard.png)
 
-## � Connecting Your Devices
+## Connecting Your Devices
 
 After setting up your VPN server, you need to connect your devices as clients (peers).
 
@@ -145,7 +145,7 @@ You can add multiple peers for different devices. Each peer gets:
 - Separate QR code and config file
 - Real-time connection monitoring
 
-## �🛠️ Troubleshooting
+## Troubleshooting
 
 If something doesn't work:
 - **Reboot your server**: `sudo reboot`
@@ -156,10 +156,10 @@ For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
 - Get paid support: Visit https://vpn.caynetic.com for $3 lifetime support
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤖 Development
+## Development
 
 This project was developed with the assistance of AI tools, but all code has been reviewed and verified by a professional software engineer.
