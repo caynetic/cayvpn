@@ -315,9 +315,9 @@ chmod 700 sessions
 
 # Create systemd service for CayVPN
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
-    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 2 --bind 0.0.0.0:${HTTPS_PORT} --certfile ${SSL_CERT_PATH} --keyfile ${SSL_KEY_PATH} app:app"
+    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 1 --bind 0.0.0.0:${HTTPS_PORT} --certfile ${SSL_CERT_PATH} --keyfile ${SSL_KEY_PATH} app:app"
 else
-    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 2 --bind 0.0.0.0:8888 app:app"
+    EXEC_START="$(pwd)/venv/bin/gunicorn --workers 1 --bind 0.0.0.0:8888 app:app"
 fi
 
 cat >/etc/systemd/system/cayvpn.service <<EOF

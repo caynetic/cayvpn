@@ -1282,9 +1282,9 @@ if __name__ == "__main__":
         logger.info(f"🔒 Starting HTTPS server on port {HTTPS_PORT}")
         logger.info(f"   Certificate: {SSL_CERT_PATH}")
         logger.info(f"   Private Key: {SSL_KEY_PATH}")
-        app.run(host="0.0.0.0", port=HTTPS_PORT, ssl_context=(SSL_CERT_PATH, SSL_KEY_PATH))
+        app.run(host="0.0.0.0", port=HTTPS_PORT, ssl_context=(SSL_CERT_PATH, SSL_KEY_PATH), threaded=True)
     else:
         logger.info(f"🌐 Starting HTTP server on port 8888")
         if ENABLE_HTTPS:
             logger.warning("⚠ HTTPS enabled but certificates not found - falling back to HTTP")
-        app.run(host="0.0.0.0", port=8888)
+        app.run(host="0.0.0.0", port=8888, threaded=True)
