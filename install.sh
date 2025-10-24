@@ -283,10 +283,10 @@ filters:
   - enabled: true
     url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     name: StevenBlack Hosts
-  - enabled: true
+  - enabled: false
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_49.txt
     name: HaGeZi’s Ultimate Blocklist
-  - enabled: false
+  - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt
     name: Phishing Army
   - enabled: true
