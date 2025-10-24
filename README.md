@@ -1,6 +1,6 @@
 # CayVPN - Easy WireGuard VPN Management
 
-A simple, secure VPN management system with WireGuard, DNS filtering, and a web interface. Get your VPN server running in minutes!
+A simple, secure, and modern VPN management system featuring WireGuard, AdGuard Home DNS filtering, and a beautiful web interface. Get your private VPN server running in minutes with HTTPS security, password hashing, CSRF protection, and real-time monitoring.
 
 ## Quick Start
 
@@ -38,20 +38,53 @@ A simple, secure VPN management system with WireGuard, DNS filtering, and a web 
 5. **Access your VPN dashboard**:
    - Open `https://your-server-ip:8443` in your browser
    - Accept the security warning (self-signed certificate)
-   - Set your admin password
+   - Set your admin password on first login
+   - Access AdGuard Home at `https://your-server-ip:8444` (uses same password)
 
 That's it! Your VPN server is ready.
 
 ## Features
 
-- ✅ WireGuard VPN with easy peer management
-- ✅ Modern, mobile-friendly web dashboard
-- ✅ QR codes for mobile device setup
-- ✅ Real-time bandwidth monitoring
-- ✅ Built-in DNS filtering (AdGuard Home)
-- ✅ Secure web interface with HTTPS
-- ✅ Automatic firewall setup
-- ✅ Easy updates from GitHub
+- ✅ **WireGuard VPN** - Fast, modern VPN protocol with easy peer management
+- ✅ **Modern Web Dashboard** - Clean, mobile-responsive interface built with Bootstrap 5
+- ✅ **QR Code Generation** - Instant mobile device setup
+- ✅ **Real-time Monitoring** - Live bandwidth tracking and connection status
+- ✅ **AdGuard Home Integration** - Built-in DNS filtering and ad-blocking (Port 3000/8444)
+- ✅ **Secure HTTPS** - Self-signed SSL certificates with automatic generation
+- ✅ **Password Security** - Bcrypt password hashing for both CayVPN and AdGuard
+- ✅ **CSRF Protection** - Flask-WTF security against cross-site attacks
+- ✅ **Rate Limiting** - Brute-force protection on login attempts
+- ✅ **Session Management** - Secure server-side session storage
+- ✅ **Automatic Firewall Setup** - iptables rules configured during installation
+- ✅ **Easy Updates** - Pull latest changes from GitHub and restart
+
+## Default Ports
+
+- **CayVPN Web Interface (HTTPS)**: `8443`
+- **CayVPN Web Interface (HTTP)**: `8888` (fallback if certificates missing)
+- **AdGuard Home (HTTPS)**: `8444`
+- **AdGuard Home (HTTP)**: `3000`
+- **WireGuard VPN**: `43210/UDP`
+- **DNS (AdGuard)**: `53/UDP` (internal VPN network only - 10.8.0.1)
+
+## Security Features
+
+- **HTTPS Encryption**: Self-signed SSL certificates auto-generated during installation
+- **Password Hashing**: Bcrypt-based password storage (no plaintext passwords)
+- **CSRF Protection**: Flask-WTF prevents cross-site request forgery attacks
+- **Rate Limiting**: Login brute-force protection (5 attempts per minute)
+- **Session Security**: Server-side session storage with 1-hour timeout
+- **Secure Headers**: X-Frame-Options, CSP, X-Content-Type-Options, and more
+- **Unified Authentication**: Single password for both CayVPN and AdGuard Home
+
+## Network Configuration
+
+- **VPN Network**: `10.8.0.0/24` (configurable)
+- **Server IP**: `10.8.0.1`
+- **Client IPs**: Auto-assigned starting from `10.8.0.2`
+- **DNS Server**: `10.8.0.1` (AdGuard Home on VPN interface)
+- **Allowed IPs**: `0.0.0.0/0, ::/0` (all traffic routed through VPN)
+- **Persistent Keepalive**: 25 seconds (maintains connection through NAT)
 
 ## Bandwidth & User Capacity
 
@@ -70,12 +103,19 @@ That's it! Your VPN server is ready.
 ## Screenshots
 
 ### Login Page
+
 ![Login Page](screenshots/login.png)
 
+### Add Peer Interface
+
+![Add Peer](screenshots/add_peers.png)
+
 ### Dashboard - WireGuard Peers Management
+
 ![WireGuard Peers Dashboard](screenshots/dashboard.png)
 
 ### AdGuard Home - DNS Filtering Dashboard
+
 ![AdGuard Home Dashboard](screenshots/adguard-dashboard.png)
 
 ## Connecting Your Devices
@@ -149,15 +189,45 @@ You can add multiple peers for different devices. Each peer gets:
 
 ## Troubleshooting
 
-If something doesn't work:
+### Common Issues
 
-- **Reboot your server**: `sudo reboot`
-- Check service status: `sudo systemctl status cayvpn`
+**Can't access the web interface:**
+
+- Check if the service is running: `sudo systemctl status cayvpn`
+- Check firewall rules: `sudo iptables -L -n -v`
+- Verify ports are open: `sudo ss -tulpn | grep -E '8443|8444|43210'`
 - View logs: `sudo journalctl -u cayvpn -f`
+
+**VPN connection fails:**
+
+- Verify WireGuard is running: `sudo systemctl status wg-quick@wg0`
+- Check WireGuard interface: `sudo wg show`
+- Ensure UDP port 43210 is open on your firewall/router
+- Verify client config matches server (endpoint IP, port, keys)
+
+**DNS not working:**
+
+- Check AdGuard Home status: `sudo systemctl status AdGuardHome`
+- Test DNS resolution: `dig @10.8.0.1 google.com`
+- Verify AdGuard is listening: `sudo ss -tulpn | grep :53`
+- Visit `/test_dns` in the CayVPN dashboard for diagnostics
+
+**Internal Server Error on password setup:**
+
+- Activate virtual environment: `source /root/cayvpn/venv/bin/activate`
+- Install dependencies: `pip install -r requirements.txt`
+- Check for bcrypt import errors in logs
+- Restart service: `sudo systemctl restart cayvpn`
+
+**General troubleshooting:**
+
+- Reboot your server: `sudo reboot`
+- Check service status: `sudo systemctl status cayvpn AdGuardHome wg-quick@wg0`
+- View all logs: `sudo journalctl -u cayvpn -u AdGuardHome -u wg-quick@wg0 --since "10 minutes ago"`
 
 For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
-- Get paid support: Visit <https://vpn.caynetic.com> for $3 lifetime support
+Get paid support: Visit <https://vpn.caynetic.com> for $3 lifetime support
 
 ## Updating CayVPN
 
@@ -172,6 +242,7 @@ sudo systemctl restart cayvpn
 **Important**: If you've made local changes to any files (like `install.sh`), you'll need to either:
 
 - **Discard your local changes** (recommended for most users):
+
   ```bash
   git reset --hard HEAD
   git pull origin main
@@ -179,6 +250,7 @@ sudo systemctl restart cayvpn
   ```
 
 - **Or stash your changes** (if you want to keep them):
+
   ```bash
   git stash
   git pull origin main
