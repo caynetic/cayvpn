@@ -50,10 +50,10 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 
-# Disable CSRF protection
-app.config['WTF_CSRF_ENABLED'] = False
+# Enable CSRF protection for security
+app.config['WTF_CSRF_ENABLED'] = True
 
-# Initialize CSRF protection (disabled)
+# Initialize CSRF protection
 csrf = CSRFProtect(app)
 
 # Secure session configuration
@@ -825,7 +825,7 @@ def login():
 
 @app.route("/logout")
 def logout():
-    session.pop("logged_in", None)
+    session.clear()  # Clear entire session for security
     return redirect(url_for("login"))
 
 @app.route("/")

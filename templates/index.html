@@ -104,6 +104,7 @@
       <i class="fas fa-plus me-2"></i>Add Peer
     </a>
     <form method="POST" action="/import_peers" style="display: inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <button type="submit" class="btn btn-outline-primary" onclick="return confirm('This will import any peers found in the WireGuard config that aren\'t already in the database. Continue?')">
         <i class="fas fa-upload me-2"></i>Import Peers
       </button>
