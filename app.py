@@ -6,7 +6,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 import logging
-sudo ls -la /etc/ssl/certs/cayvpn.crt /etc/ssl/private/cayvpn.keyimport bcrypt
 
 app = Flask(__name__)
 
