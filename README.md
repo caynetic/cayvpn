@@ -79,7 +79,7 @@ That's it! Your VPN server is ready.
 
 ## Network Configuration
 
-- **VPN Network**: `10.8.0.0/24` (configurable)
+- **VPN Network**: `10.8.0.0/24`
 - **Server IP**: `10.8.0.1`
 - **Client IPs**: Auto-assigned starting from `10.8.0.2`
 - **DNS Server**: `10.8.0.1` (AdGuard Home on VPN interface)
