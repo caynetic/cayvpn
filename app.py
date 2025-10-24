@@ -6,7 +6,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 import logging
-import bcrypt
+sudo ls -la /etc/ssl/certs/cayvpn.crt /etc/ssl/private/cayvpn.keyimport bcrypt
 
 app = Flask(__name__)
 
@@ -70,15 +70,25 @@ SSL_CERT_PATH = os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/cayvpn.crt')
 SSL_KEY_PATH = os.environ.get('SSL_KEY_PATH', '/etc/ssl/private/cayvpn.key')
 HTTPS_PORT = int(os.environ.get('HTTPS_PORT', '8443'))
 
+# AdGuard Home HTTPS Configuration
+ADGUARD_HTTPS_ENABLED = ENABLE_HTTPS  # Use same HTTPS setting as CayVPN
+ADGUARD_HTTPS_PORT = int(os.environ.get('ADGUARD_HTTPS_PORT', '8444'))
+ADGUARD_HTTP_PORT = int(os.environ.get('ADGUARD_HTTP_PORT', '3000'))
+
 # Enable secure cookies if HTTPS is enabled
 if ENABLE_HTTPS:
     app.config['SESSION_COOKIE_SECURE'] = True
     print("✓ HTTPS enabled - secure cookies activated")
 
-# Context processor to make version available to all templates
+# Context processor to make version and config available to all templates
 @app.context_processor
 def inject_version():
-    return {'version': __version__}
+    return {
+        'version': __version__,
+        'adguard_https_enabled': ADGUARD_HTTPS_ENABLED,
+        'adguard_https_port': ADGUARD_HTTPS_PORT,
+        'adguard_http_port': ADGUARD_HTTP_PORT
+    }
 
 # Force HTTPS redirect if enabled
 @app.before_request

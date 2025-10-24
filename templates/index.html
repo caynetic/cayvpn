@@ -87,9 +87,15 @@
           <i class="fas fa-external-link-alt me-3 text-muted"></i>
           <div>
             <strong>AdGuard Home:</strong><br>
-            <a href="http://{{ server_ip }}:3000" target="_blank" class="text-primary text-decoration-none">
-              http://{{ server_ip }}:3000 <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
+            {% if adguard_https_enabled %}
+            <a href="https://{{ server_ip }}:{{ adguard_https_port }}" target="_blank" class="text-primary text-decoration-none">
+              https://{{ server_ip }}:{{ adguard_https_port }} <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
             </a>
+            {% else %}
+            <a href="http://{{ server_ip }}:{{ adguard_http_port }}" target="_blank" class="text-primary text-decoration-none">
+              http://{{ server_ip }}:{{ adguard_http_port }} <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
+            </a>
+            {% endif %}
           </div>
         </div>
       </div>

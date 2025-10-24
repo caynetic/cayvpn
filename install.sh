@@ -247,8 +247,16 @@ tls:
   server_name: ${PUB_IP}
   force_https: true
   port_https: 8444
-  certificates: ${SSL_CERT_PATH}
-  private_key: ${SSL_KEY_PATH}"
+  port_dns_over_tls: 853
+  port_dns_over_quic: 853
+  port_dnscrypt: 0
+  dnscrypt_config_file: \"\"
+  allow_unencrypted_doh: false
+  certificate_chain: \"\"
+  private_key: \"\"
+  certificate_path: ${SSL_CERT_PATH}
+  private_key_path: ${SSL_KEY_PATH}
+  strict_sni_check: false"
 fi
 
 cat >/opt/AdGuardHome/AdGuardHome.yaml <<EOF
@@ -387,21 +395,48 @@ if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     # Create SSL directory if it doesn't exist
     mkdir -p /etc/ssl/private /etc/ssl/certs
     
-    # Generate self-signed certificate
+    # Generate self-signed certificate with SANs
     if [[ ! -f "${SSL_CERT_PATH}" ]] || [[ ! -f "${SSL_KEY_PATH}" ]]; then
-        echo "Generating self-signed SSL certificate..."
+        echo "Generating self-signed SSL certificate with SANs..."
+        
+        # Create OpenSSL config for SANs
+        cat > /etc/ssl/openssl-san.cnf << EOF
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = US
+ST = State
+L = City
+O = CayVPN
+CN = ${PUB_IP}
+
+[v3_req]
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = ${PUB_IP}
+EOF
+        
         openssl req -x509 -newkey rsa:4096 \
             -keyout "${SSL_KEY_PATH}" \
             -out "${SSL_CERT_PATH}" \
             -days 365 \
             -nodes \
-            -subj "/C=US/ST=State/L=City/O=CayVPN/CN=${PUB_IP:-localhost}"
+            -config /etc/ssl/openssl-san.cnf \
+            -extensions v3_req
         
         # Set proper permissions
         chmod 600 "${SSL_KEY_PATH}"
         chmod 644 "${SSL_CERT_PATH}"
         
-        echo "✓ SSL certificate generated"
+        echo "✓ SSL certificate with SANs generated"
+        echo "  Certificate: ${SSL_CERT_PATH}"
+        echo "  Private Key: ${SSL_KEY_PATH}"
     else
         echo "✓ SSL certificate already exists"
     fi
