@@ -1,5 +1,7 @@
 # CayVPN Deployment Checklist
 
+Complete deployment guide for CayVPN - a secure WireGuard VPN management system with AdGuard Home DNS filtering, HTTPS encryption, password hashing, CSRF protection, and real-time monitoring.
+
 Before deploying to your server, verify these items:
 
 ## ✅ Pre-Deployment Verification
@@ -7,7 +9,7 @@ Before deploying to your server, verify these items:
 ### 1. Server Requirements
 - [ ] Ubuntu 20.04+ or Debian 11+
 - [ ] Root or sudo access
-- [ ] At least 1GB RAM
+- [ ] At least 512MB RAM (1GB+ recommended for multiple users)
 - [ ] 10GB+ disk space
 - [ ] Public IP address
 
@@ -16,15 +18,16 @@ Before deploying to your server, verify these items:
   - `43210/UDP` - WireGuard VPN
   - `8888/TCP` - HTTP web interface (fallback)
   - `8443/TCP` - HTTPS web interface (primary)
-  - `3000/TCP` - AdGuard Home UI (optional)
-  - `53/TCP+UDP` - DNS (internal only, via WireGuard)
+  - `8444/TCP` - AdGuard Home UI HTTPS (primary)
+  - `3000/TCP` - AdGuard Home UI HTTP (fallback)
+  - `53/TCP+UDP` - DNS (internal only, via WireGuard - 10.8.0.1)
 
 ### 3. Installation Steps
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/caynetic/cayvpn.git
-cd vpn
+cd cayvpn
 
 # 2. (Optional) Customize configuration
 export WG_PORT=43210              # WireGuard UDP port
@@ -44,7 +47,6 @@ sudo ./install.sh
 sudo systemctl status wg-quick@wg0
 sudo systemctl status AdGuardHome
 sudo systemctl status cayvpn
-sudo systemctl status cloudflared-dns
 
 # All services should show "active (running)"
 
@@ -56,29 +58,39 @@ sudo iptables -L -n | grep 43210
 ls -la /etc/ssl/certs/cayvpn.crt
 ls -la /etc/ssl/private/cayvpn.key
 
-# Test web interface
-curl -k https://localhost:8443  # Should return HTML
-curl http://localhost:8888      # Should also work
+# Verify AdGuard Home certificates
+ls -la /opt/AdGuardHome/cayvpn.crt
+ls -la /opt/AdGuardHome/cayvpn.key
+
+# Test web interfaces
+curl -k https://localhost:8443  # CayVPN - Should return HTML
+curl -k https://localhost:8444  # AdGuard - Should return HTML
+curl http://localhost:8888      # CayVPN HTTP fallback
+curl http://localhost:3000      # AdGuard HTTP fallback
 ```
 
 ### 5. First Access
 
 1. **Open your browser** and navigate to:
-   - Primary: `https://YOUR_SERVER_IP:8443`
-   - Fallback: `http://YOUR_SERVER_IP:8888`
+   - **CayVPN Primary**: `https://YOUR_SERVER_IP:8443`
+   - **CayVPN Fallback**: `http://YOUR_SERVER_IP:8888`
+   - **AdGuard Home Primary**: `https://YOUR_SERVER_IP:8444`
+   - **AdGuard Home Fallback**: `http://YOUR_SERVER_IP:3000`
 
 2. **Accept SSL warning** (self-signed certificate)
    - Click "Advanced" → "Proceed to site"
    - This is normal for self-signed certificates
 
-3. **Set admin password**
+3. **Set admin password** (First-time setup on CayVPN login page)
    - Username: `admin` (fixed)
    - Password: Set your own (minimum 8 characters)
+   - This password will be used for both CayVPN and AdGuard Home
 
 4. **Verify installation**
-   - Dashboard should load
+   - CayVPN dashboard should load
    - No peers should be listed yet
    - Server info should be displayed
+   - AdGuard Home should be accessible with the same password
 
 ## 🔧 Troubleshooting
 
@@ -112,9 +124,11 @@ sudo journalctl -u cayvpn --no-pager -n 50
 ### HTTPS certificate issues
 
 ```bash
-# Regenerate certificates
+# Regenerate certificates for both services
 sudo rm /etc/ssl/certs/cayvpn.crt /etc/ssl/private/cayvpn.key
+sudo rm /opt/AdGuardHome/cayvpn.crt /opt/AdGuardHome/cayvpn.key
 sudo systemctl restart cayvpn
+sudo systemctl restart AdGuardHome
 
 # Or disable HTTPS temporarily
 sudo systemctl stop cayvpn
@@ -165,58 +179,75 @@ chmod 600 /etc/ssl/private/cayvpn.key
    ```
 
 4. **Regular updates**
+
    ```bash
    # Update system packages
    sudo apt update && sudo apt upgrade -y
    
-   # Update Python dependencies
-   cd /path/to/vpn
+   # Update CayVPN from GitHub
+   cd /root/cayvpn
+   git pull origin main
+   
+   # Update Python dependencies (if needed)
    source venv/bin/activate
    pip install --upgrade -r requirements.txt
    sudo systemctl restart cayvpn
    ```
 
 5. **Backup configuration**
+
    ```bash
    # Backup database and configs
    sudo cp wg.db wg.db.backup
    sudo tar czf cayvpn-backup-$(date +%F).tar.gz \
        wg.db \
        /etc/wireguard/ \
-       /opt/AdGuardHome/AdGuardHome.yaml
+       /etc/ssl/certs/cayvpn.crt \
+       /etc/ssl/private/cayvpn.key \
+       /opt/AdGuardHome/AdGuardHome.yaml \
+       /opt/AdGuardHome/cayvpn.crt \
+       /opt/AdGuardHome/cayvpn.key
    ```
 
 ## 📊 Expected Behavior
 
 ### After Successful Installation
 
-- ✅ All 4 services running (WireGuard, AdGuard, CayVPN, Cloudflared)
-- ✅ Web interface accessible via HTTPS
-- ✅ Self-signed certificate generated
+- ✅ 3 services running (WireGuard, AdGuard Home, CayVPN)
+- ✅ Web interfaces accessible via HTTPS on ports 8443 and 8444
+- ✅ Self-signed certificates generated and shared between services
 - ✅ Session storage directory created
 - ✅ Firewall rules configured
 - ✅ First-time password setup required
+- ✅ Bcrypt password hashing enabled
+- ✅ CSRF protection active on all forms
+- ✅ Rate limiting on login attempts
 
 ### Known Behavior
 
 - ⚠️ Browser shows SSL warning (expected for self-signed cert)
-- ⚠️ HTTP fallback available on port 8888 (for debugging)
-- ⚠️ AdGuard Home accessible on port 3000 (same password as admin)
+- ⚠️ HTTP fallback available on ports 8888 (CayVPN) and 3000 (AdGuard)
+- ⚠️ AdGuard Home uses same admin password as CayVPN
 - ✅ Rate limiting: Max 5 login attempts per minute
 - ✅ CSRF tokens on all forms
-- ✅ Secure session cookies (HttpOnly, SameSite)
+- ✅ Secure session cookies (HttpOnly, SameSite, 1-hour timeout)
+- ✅ Password hashing with bcrypt (cost factor 10)
+- ✅ Server-side session storage in `sessions/` directory
 
 ## 🎯 Success Criteria
 
 Your installation is successful when:
 
-1. ✅ You can access `https://YOUR_IP:8443`
-2. ✅ You can set an admin password
-3. ✅ You can login with that password
-4. ✅ Dashboard displays server information
-5. ✅ You can add a WireGuard peer
-6. ✅ You can download/view QR code for the peer
-7. ✅ Peer statistics show up after connection
+1. ✅ You can access `https://YOUR_IP:8443` (CayVPN)
+2. ✅ You can access `https://YOUR_IP:8444` (AdGuard Home)
+3. ✅ You can set an admin password on first login
+4. ✅ You can login to both interfaces with that password
+5. ✅ CayVPN dashboard displays server information
+6. ✅ You can add a WireGuard peer
+7. ✅ You can download/view QR code for the peer
+8. ✅ Peer statistics show up after connection
+9. ✅ DNS queries are filtered through AdGuard Home
+10. ✅ All security features are active (HTTPS, CSRF, rate limiting)
 
 ## 🆘 Getting Help
 
@@ -233,19 +264,35 @@ If you encounter issues:
 Default values (can be changed before installation):
 
 ```bash
+# WireGuard Configuration
 WG_PORT=43210                           # WireGuard UDP port
 WG_IFACE=wg0                           # WireGuard interface
 WG_SUBNET_V4=10.8.0.1/24              # VPN subnet
+
+# HTTPS Configuration
 ENABLE_HTTPS=1                         # Enable HTTPS (1=yes, 0=no)
-HTTPS_PORT=8443                        # HTTPS port
+HTTPS_PORT=8443                        # CayVPN HTTPS port
 SSL_CERT_PATH=/etc/ssl/certs/cayvpn.crt
 SSL_KEY_PATH=/etc/ssl/private/cayvpn.key
-ADGH_ADMIN_PORT=3000                   # AdGuard Home UI port
+
+# AdGuard Home Configuration
+ADGUARD_HTTPS_PORT=8444                # AdGuard Home HTTPS port
+ADGUARD_HTTP_PORT=3000                 # AdGuard Home HTTP fallback
+ADGUARD_CONFIG=/opt/AdGuardHome/AdGuardHome.yaml
+
+# Security Configuration
+WTF_CSRF_ENABLED=True                  # CSRF protection
+PERMANENT_SESSION_LIFETIME=3600        # Session timeout (1 hour)
+SESSION_COOKIE_SECURE=True             # Secure cookies (HTTPS only)
+SESSION_COOKIE_HTTPONLY=True           # HttpOnly cookies
+SESSION_COOKIE_SAMESITE=Lax            # SameSite policy
 ```
 
-To customize:
+To customize before installation:
+
 ```bash
 export ENABLE_HTTPS=0  # Disable HTTPS
 export HTTPS_PORT=443  # Use standard HTTPS port
+export WG_PORT=51820   # Custom WireGuard port
 ./install.sh
 ```

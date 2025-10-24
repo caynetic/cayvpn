@@ -116,11 +116,17 @@ function autoDetectRegion() {
     form.method = 'POST';
     form.style.display = 'none';
     
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token() }}';
+    
     const actionInput = document.createElement('input');
     actionInput.type = 'hidden';
     actionInput.name = 'action';
     actionInput.value = 'detect_region';
     
+    form.appendChild(csrfInput);
     form.appendChild(actionInput);
     document.body.appendChild(form);
     form.submit();

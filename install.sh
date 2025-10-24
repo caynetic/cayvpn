@@ -239,9 +239,30 @@ PY
 )"
 
 # ---------- AdGuard Config (with filters) ----------
+ADGUARD_TLS_CONFIG=""
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    ADGUARD_TLS_CONFIG="
+tls:
+  enabled: true
+  server_name: ${PUB_IP}
+  force_https: true
+  port_https: 8444
+  port_dns_over_tls: 853
+  port_dns_over_quic: 853
+  port_dnscrypt: 0
+  dnscrypt_config_file: \"\"
+  allow_unencrypted_doh: false
+  certificate_chain: \"\"
+  private_key: \"\"
+  certificate_path: ${SSL_CERT_PATH}
+  private_key_path: ${SSL_KEY_PATH}
+  strict_sni_check: false"
+fi
+
 cat >/opt/AdGuardHome/AdGuardHome.yaml <<EOF
 bind_host: 0.0.0.0
 bind_port: ${ADGH_ADMIN_PORT}
+${ADGUARD_TLS_CONFIG}
 users:
   - name: ${ADMIN_USER}
     password: ${BCRYPT_HASH}
@@ -262,10 +283,10 @@ filters:
   - enabled: true
     url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     name: StevenBlack Hosts
-  - enabled: true
+  - enabled: false
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_49.txt
     name: HaGeZi’s Ultimate Blocklist
-  - enabled: false
+  - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt
     name: Phishing Army
   - enabled: true
@@ -354,6 +375,9 @@ iptables -C INPUT -p udp --dport ${WG_PORT} -j ACCEPT 2>/dev/null || iptables -A
 iptables -C INPUT -i lo -p udp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p udp --dport 53 -j ACCEPT
 iptables -C INPUT -i lo -p tcp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p tcp --dport 53 -j ACCEPT
 iptables -C INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    iptables -C INPUT -p tcp --dport 8444 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8444 -j ACCEPT
+fi
 iptables -C INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP
 iptables -C INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP
 netfilter-persistent save
@@ -371,21 +395,48 @@ if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     # Create SSL directory if it doesn't exist
     mkdir -p /etc/ssl/private /etc/ssl/certs
     
-    # Generate self-signed certificate
+    # Generate self-signed certificate with SANs
     if [[ ! -f "${SSL_CERT_PATH}" ]] || [[ ! -f "${SSL_KEY_PATH}" ]]; then
-        echo "Generating self-signed SSL certificate..."
+        echo "Generating self-signed SSL certificate with SANs..."
+        
+        # Create OpenSSL config for SANs
+        cat > /etc/ssl/openssl-san.cnf << EOF
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = US
+ST = State
+L = City
+O = CayVPN
+CN = ${PUB_IP}
+
+[v3_req]
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = ${PUB_IP}
+EOF
+        
         openssl req -x509 -newkey rsa:4096 \
             -keyout "${SSL_KEY_PATH}" \
             -out "${SSL_CERT_PATH}" \
             -days 365 \
             -nodes \
-            -subj "/C=US/ST=State/L=City/O=CayVPN/CN=${PUB_IP:-localhost}"
+            -config /etc/ssl/openssl-san.cnf \
+            -extensions v3_req
         
         # Set proper permissions
         chmod 600 "${SSL_KEY_PATH}"
         chmod 644 "${SSL_CERT_PATH}"
         
-        echo "✓ SSL certificate generated"
+        echo "✓ SSL certificate with SANs generated"
+        echo "  Certificate: ${SSL_CERT_PATH}"
+        echo "  Private Key: ${SSL_KEY_PATH}"
     else
         echo "✓ SSL certificate already exists"
     fi
@@ -444,6 +495,12 @@ echo ""
 echo "🔧 Services Status:"
 echo "  - WireGuard: $(systemctl is-active wg-quick@${WG_IFACE})"
 echo "  - AdGuard Home: $(systemctl is-active AdGuardHome)"
+if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    echo "    - AdGuard HTTPS: https://${PUB_IP}:8444"
+    echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
+else
+    echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
+fi
 echo "  - CayVPN: $(systemctl is-active cayvpn)"
 echo "  - Cloudflared: $(systemctl is-active cloudflared-dns)"
 echo ""

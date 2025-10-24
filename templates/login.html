@@ -54,9 +54,9 @@
               <input type="password" class="form-control form-control-lg" id="password" name="password" required
                      minlength="8" autocomplete="{% if first_time %}new-password{% else %}current-password{% endif %}"
                      style="border-radius: 10px 0 0 10px;">
-              <button class="btn btn-outline-secondary" type="button" id="togglePassword"
-                      style="border-radius: 0 10px 10px 0;">
-                <i class="fas fa-eye"></i>
+              <button class="btn btn-secondary" type="button" id="togglePassword"
+                      style="border-radius: 0 10px 10px 0; min-width: 80px; font-weight: 600;">
+                Show
               </button>
             </div>
             <div class="form-text text-muted">
@@ -73,9 +73,9 @@
               <input type="password" class="form-control form-control-lg" id="confirm_password" name="confirm_password"
                      required minlength="8" autocomplete="new-password"
                      style="border-radius: 10px 0 0 10px;">
-              <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword"
-                      style="border-radius: 0 10px 10px 0;">
-                <i class="fas fa-eye"></i>
+              <button class="btn btn-secondary" type="button" id="toggleConfirmPassword"
+                      style="border-radius: 0 10px 10px 0; min-width: 80px; font-weight: 600;">
+                Show
               </button>
             </div>
             <div class="form-text text-muted">
@@ -104,30 +104,24 @@
 // Password visibility toggle
 document.getElementById('togglePassword').addEventListener('click', function() {
   const password = document.getElementById('password');
-  const icon = this.querySelector('i');
   if (password.type === 'password') {
     password.type = 'text';
-    icon.classList.remove('fa-eye');
-    icon.classList.add('fa-eye-slash');
+    this.textContent = 'Hide';
   } else {
     password.type = 'password';
-    icon.classList.remove('fa-eye-slash');
-    icon.classList.add('fa-eye');
+    this.textContent = 'Show';
   }
 });
 
 {% if first_time %}
 document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
   const confirmPassword = document.getElementById('confirm_password');
-  const icon = this.querySelector('i');
   if (confirmPassword.type === 'password') {
     confirmPassword.type = 'text';
-    icon.classList.remove('fa-eye');
-    icon.classList.add('fa-eye-slash');
+    this.textContent = 'Hide';
   } else {
     confirmPassword.type = 'password';
-    icon.classList.remove('fa-eye-slash');
-    icon.classList.add('fa-eye');
+    this.textContent = 'Show';
   }
 });
 {% endif %}
