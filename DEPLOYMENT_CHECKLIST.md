@@ -9,7 +9,7 @@ Before deploying to your server, verify these items:
 ### 1. Server Requirements
 - [ ] Ubuntu 20.04+ or Debian 11+
 - [ ] Root or sudo access
-- [ ] At least 1GB RAM
+- [ ] At least 512MB RAM (1GB+ recommended for multiple users)
 - [ ] 10GB+ disk space
 - [ ] Public IP address
 

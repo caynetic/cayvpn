@@ -13,7 +13,7 @@ A simple, secure, and modern VPN management system featuring WireGuard, AdGuard 
    - Click **"Create"** → **"Droplets"**
    - **Choose Region**: Select the region where you want your VPN to be located (this will be your VPN's geographic location)
    - **Choose Image**: Select **Ubuntu 24.04 LTS**
-   - **Choose Size**: Start with the basic plan (1GB RAM minimum recommended)
+   - **Choose Size**: Start with the basic plan (512MB RAM is sufficient for personal use, 1GB+ recommended for multiple users)
    - **Authentication**: Choose **SSH Key** (recommended) or **Password**
    - Click **"Create Droplet"**
 
