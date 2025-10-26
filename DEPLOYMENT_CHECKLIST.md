@@ -149,6 +149,19 @@ chmod 700 /path/to/vpn/sessions
 chmod 600 /etc/ssl/private/cayvpn.key
 ```
 
+### Forgot admin password
+
+If you forget your admin password, you can reset it by clearing the password from the database. This will trigger first-time setup again:
+
+```bash
+cd cayvpn
+sudo apt update && sudo apt install -y sqlite3
+sqlite3 wg.db "DELETE FROM settings WHERE key='admin_password';"
+sudo systemctl restart cayvpn
+```
+
+Then visit the web interface again - you'll be prompted to set a new admin password.
+
 ## 🔒 Security Recommendations
 
 ### After Installation

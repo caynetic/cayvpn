@@ -219,6 +219,19 @@ You can add multiple peers for different devices. Each peer gets:
 - Check for bcrypt import errors in logs
 - Restart service: `sudo systemctl restart cayvpn`
 
+**Forgot admin password:**
+
+If you forget your admin password, you can reset it by clearing the password from the database. This will trigger first-time setup again:
+
+```bash
+cd cayvpn
+sudo apt update && sudo apt install -y sqlite3
+sqlite3 wg.db "DELETE FROM settings WHERE key='admin_password';"
+sudo systemctl restart cayvpn
+```
+
+Then visit the web interface again - you'll be prompted to set a new admin password.
+
 **General troubleshooting:**
 
 - Reboot your server: `sudo reboot`
