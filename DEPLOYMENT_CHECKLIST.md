@@ -1,13 +1,13 @@
 # CayVPN Deployment Checklist
 
-Complete deployment guide for CayVPN - a secure WireGuard VPN management system with AdGuard Home DNS filtering, HTTPS encryption, password hashing, CSRF protection, and real-time monitoring.
+Complete deployment guide for CayVPN v1.0.0 - a secure WireGuard VPN management system with AdGuard Home DNS filtering, HTTPS encryption, password hashing, CSRF protection, and real-time monitoring.
 
 Before deploying to your server, verify these items:
 
 ## ✅ Pre-Deployment Verification
 
 ### 1. Server Requirements
-- [ ] Ubuntu 20.04+ or Debian 11+
+- [ ] Ubuntu 20.04+ or Debian 11+ (Ubuntu 24.04 LTS recommended)
 - [ ] Root or sudo access
 - [ ] At least 512MB RAM (1GB+ recommended for multiple users)
 - [ ] 10GB+ disk space
@@ -47,6 +47,7 @@ sudo ./install.sh
 sudo systemctl status wg-quick@wg0
 sudo systemctl status AdGuardHome
 sudo systemctl status cayvpn
+sudo systemctl status cloudflared-dns
 
 # All services should show "active (running)"
 
@@ -101,11 +102,13 @@ curl http://localhost:3000      # AdGuard HTTP fallback
 sudo journalctl -u cayvpn -f
 sudo journalctl -u wg-quick@wg0 -f
 sudo journalctl -u AdGuardHome -f
+sudo journalctl -u cloudflared-dns -f
 
 # Restart services
 sudo systemctl restart cayvpn
 sudo systemctl restart wg-quick@wg0
 sudo systemctl restart AdGuardHome
+sudo systemctl restart cloudflared-dns
 ```
 
 ### Cannot access web interface
@@ -213,7 +216,7 @@ chmod 600 /etc/ssl/private/cayvpn.key
 
 ### After Successful Installation
 
-- ✅ 3 services running (WireGuard, AdGuard Home, CayVPN)
+- ✅ 4 services running (WireGuard, AdGuard Home, CayVPN, Cloudflared DNS)
 - ✅ Web interfaces accessible via HTTPS on ports 8443 and 8444
 - ✅ Self-signed certificates generated and shared between services
 - ✅ Session storage directory created
@@ -269,8 +272,19 @@ WG_PORT=43210                           # WireGuard UDP port
 WG_IFACE=wg0                           # WireGuard interface
 WG_SUBNET_V4=10.8.0.1/24              # VPN subnet
 
+```bash
+## 📝 Configuration Variables
+
+Default values (can be changed before installation):
+
+```bash
+# WireGuard Configuration
+WG_PORT=43210                           # WireGuard UDP port
+WG_IFACE=wg0                           # WireGuard interface
+WG_SUBNET_V4=10.8.0.1/24              # VPN subnet
+
 # HTTPS Configuration
-ENABLE_HTTPS=1                         # Enable HTTPS (1=yes, 0=no)
+ENABLE_HTTPS=1                         # Enable HTTPS (1=yes, 0=no) - install.sh default
 HTTPS_PORT=8443                        # CayVPN HTTPS port
 SSL_CERT_PATH=/etc/ssl/certs/cayvpn.crt
 SSL_KEY_PATH=/etc/ssl/private/cayvpn.key
@@ -286,6 +300,22 @@ PERMANENT_SESSION_LIFETIME=3600        # Session timeout (1 hour)
 SESSION_COOKIE_SECURE=True             # Secure cookies (HTTPS only)
 SESSION_COOKIE_HTTPONLY=True           # HttpOnly cookies
 SESSION_COOKIE_SAMESITE=Lax            # SameSite policy
+```
+
+**Note**: ENABLE_HTTPS defaults to 1 in install.sh but 0 in app.py. The install.sh setting takes precedence during installation.
+
+## 📦 Python Dependencies
+
+Current requirements (from requirements.txt):
+
+```text
+Flask==3.0.0
+qrcode[pil]==7.4.2
+Flask-Session==0.8.0
+Flask-Limiter==3.5.0
+Flask-WTF==1.2.1
+gunicorn==21.2.0
+bcrypt==4.1.2
 ```
 
 To customize before installation:
