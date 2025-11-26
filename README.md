@@ -240,8 +240,6 @@ Then visit the web interface again - you'll be prompted to set a new admin passw
 
 For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
-Get paid support: Visit <https://vpn.caynetic.com> for $3 lifetime support
-
 ## Updating CayVPN
 
 To update your CayVPN installation to the latest version:
