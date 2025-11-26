@@ -273,6 +273,7 @@ If you encounter issues:
 2. Verify services: `sudo systemctl status cayvpn`
 3. Review this checklist
 4. Check GitHub issues: https://github.com/caynetic/cayvpn/issues
+5. [Visit the project website](https://oss.caynetic.com/vpn)
 
 ## 📝 Configuration Variables
 

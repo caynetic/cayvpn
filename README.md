@@ -240,6 +240,8 @@ Then visit the web interface again - you'll be prompted to set a new admin passw
 
 For detailed help, see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md).
 
+For more information, visit the [project website](https://oss.caynetic.com/vpn).
+
 ## Updating CayVPN
 
 To update your CayVPN installation to the latest version:
