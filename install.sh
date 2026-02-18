@@ -28,6 +28,29 @@ if [[ -z "${OUT_IFACE}" ]]; then echo "Could not auto-detect OUT_IFACE"; exit 1;
 
 export DEBIAN_FRONTEND=noninteractive
 
+# ---------- DNS Helpers ----------
+write_upstream_resolv_conf() {
+    rm -f /etc/resolv.conf
+    cat >/etc/resolv.conf <<'EOF'
+nameserver 1.1.1.1
+nameserver 1.0.0.1
+nameserver 8.8.8.8
+options edns0 timeout:2 attempts:2
+EOF
+}
+
+write_local_resolv_conf() {
+    rm -f /etc/resolv.conf
+    cat >/etc/resolv.conf <<'EOF'
+nameserver 127.0.0.1
+options edns0 timeout:2 attempts:2
+EOF
+}
+
+validate_dns_resolution() {
+    getent hosts github.com >/dev/null 2>&1 || getent hosts cloudflare.com >/dev/null 2>&1
+}
+
 # ---------- Location Detection ----------
 echo "🔍 Detecting server location..."
 
@@ -131,11 +154,7 @@ apt install -y --no-install-recommends \
   python3-yaml python3-bcrypt apache2-utils git
 
 # ---------- resolv.conf ----------
-if systemctl is-enabled --quiet systemd-resolved 2>/dev/null; then
-  systemctl disable --now systemd-resolved || true
-fi
-rm -f /etc/resolv.conf
-echo -e "nameserver 1.1.1.1\noptions edns0" > /etc/resolv.conf
+write_upstream_resolv_conf
 
 # ---------- WireGuard ----------
 echo "🔐 Setting up WireGuard..."
@@ -299,8 +318,13 @@ EOF
 /opt/AdGuardHome/AdGuardHome -s install || true
 systemctl enable --now AdGuardHome || true
 
-rm -f /etc/resolv.conf
-echo -e "nameserver 127.0.0.1\noptions edns0" > /etc/resolv.conf
+write_local_resolv_conf
+if validate_dns_resolution; then
+  echo "✓ Local DNS resolver is healthy"
+else
+  echo "⚠️ Local DNS validation failed; reverting /etc/resolv.conf to upstream resolvers"
+  write_upstream_resolv_conf
+fi
 
 # ---------- CayVPN Flask App Setup ----------
 echo "🐍 Setting up CayVPN Flask application..."
@@ -318,7 +342,9 @@ if [[ -f "wg.db" ]]; then
 fi
 
 # Update repository
-git pull origin main
+if ! git pull origin main; then
+    echo "⚠️ Unable to pull latest changes from origin/main; continuing with current checkout"
+fi
 
 # Set up Python virtual environment
 if [[ ! -d "venv" ]]; then
