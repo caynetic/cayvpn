@@ -59,23 +59,23 @@
           <strong>Security Notice:</strong> You are using the default password. Please set a strong password to secure your VPN management panel.
         </div>
         {% endif %}
-        <form method="post">
+        <form method="post" autocomplete="on">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="action" value="change_password">
           {% if not force_password_change %}
           <div class="mb-3">
             <label for="current_password" class="form-label">Current Password</label>
-            <input type="password" class="form-control" id="current_password" name="current_password" required>
+            <input type="password" class="form-control" id="current_password" name="current_password" required autocomplete="current-password">
           </div>
           {% endif %}
           <div class="mb-3">
             <label for="new_password" class="form-label">New Password</label>
-            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
+            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8" autocomplete="new-password">
             <small class="form-text text-muted">Minimum 8 characters. This will update both the Admin Panel and AdGuard Home passwords.</small>
           </div>
           <div class="mb-3">
             <label for="confirm_password" class="form-label">Confirm New Password</label>
-            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password">
           </div>
           <button type="submit" class="btn btn-{% if force_password_change %}primary{% else %}warning{% endif %}">
             <i class="fas fa-key"></i> {% if force_password_change %}Set Password{% else %}Change Password{% endif %}
