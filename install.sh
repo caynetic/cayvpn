@@ -22,6 +22,7 @@ ENABLE_HTTPS="${ENABLE_HTTPS:-1}"
 SSL_CERT_PATH="${SSL_CERT_PATH:-/etc/ssl/certs/cayvpn.crt}"
 SSL_KEY_PATH="${SSL_KEY_PATH:-/etc/ssl/private/cayvpn.key}"
 HTTPS_PORT="${HTTPS_PORT:-8443}"
+ENABLE_LOCAL_SYSTEM_DNS="${ENABLE_LOCAL_SYSTEM_DNS:-0}"
 
 OUT_IFACE="${OUT_IFACE:-$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)}"
 if [[ -z "${OUT_IFACE}" ]]; then echo "Could not auto-detect OUT_IFACE"; exit 1; fi
@@ -29,16 +30,6 @@ if [[ -z "${OUT_IFACE}" ]]; then echo "Could not auto-detect OUT_IFACE"; exit 1;
 export DEBIAN_FRONTEND=noninteractive
 
 # ---------- DNS Helpers ----------
-write_upstream_resolv_conf() {
-    rm -f /etc/resolv.conf
-    cat >/etc/resolv.conf <<'EOF'
-nameserver 1.1.1.1
-nameserver 1.0.0.1
-nameserver 8.8.8.8
-options edns0 timeout:2 attempts:2
-EOF
-}
-
 write_local_resolv_conf() {
     rm -f /etc/resolv.conf
     cat >/etc/resolv.conf <<'EOF'
@@ -49,6 +40,29 @@ EOF
 
 validate_dns_resolution() {
     getent hosts github.com >/dev/null 2>&1 || getent hosts cloudflare.com >/dev/null 2>&1
+}
+
+configure_system_resolver() {
+    if [[ "${ENABLE_LOCAL_SYSTEM_DNS}" != "1" ]]; then
+        echo "ℹ️ Leaving server resolver unchanged (set ENABLE_LOCAL_SYSTEM_DNS=1 to point host DNS to AdGuard)"
+        return
+    fi
+
+    local resolv_backup
+    resolv_backup="$(mktemp)"
+    cp -L /etc/resolv.conf "${resolv_backup}" 2>/dev/null || true
+
+    write_local_resolv_conf
+    if validate_dns_resolution; then
+        echo "✓ Local DNS resolver is healthy"
+    else
+        echo "⚠️ Local DNS validation failed; restoring previous resolver settings"
+        if [[ -s "${resolv_backup}" ]]; then
+            cat "${resolv_backup}" >/etc/resolv.conf
+        fi
+    fi
+
+    rm -f "${resolv_backup}"
 }
 
 # ---------- Location Detection ----------
@@ -153,9 +167,6 @@ apt install -y --no-install-recommends \
   curl wget ca-certificates jq tar python3 python3-pip python3-venv \
   python3-yaml python3-bcrypt apache2-utils git
 
-# ---------- resolv.conf ----------
-write_upstream_resolv_conf
-
 # ---------- WireGuard ----------
 echo "🔐 Setting up WireGuard..."
 umask 077
@@ -203,45 +214,15 @@ netfilter-persistent save
 systemctl enable --now netfilter-persistent
 systemctl enable --now "wg-quick@${WG_IFACE}" || true
 
-# ---------- cloudflared (DNS over HTTPS) ----------
-echo "☁️ Installing cloudflared..."
-tmpdir="$(mktemp -d)"
-pushd "$tmpdir" >/dev/null
-wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-dpkg -i cloudflared-linux-amd64.deb || true
-id -u cloudflared &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared
-
-cat >/etc/systemd/system/cloudflared-dns.service <<'EOF'
-[Unit]
-Description=cloudflared DNS over HTTPS proxy
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=cloudflared
-ExecStart=/usr/bin/cloudflared proxy-dns --address 127.0.0.1 --port 5053 \
-  --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
-Restart=always
-RestartSec=2
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-chmod 644 /etc/systemd/system/cloudflared-dns.service
-systemctl daemon-reload
-systemctl enable --now cloudflared-dns
-popd >/dev/null
-
 # ---------- AdGuard Home ----------
 echo "🛡️ Installing AdGuard Home..."
+tmpdir="$(mktemp -d)"
 pushd "$tmpdir" >/dev/null
 DL_URL="$(curl -s https://api.github.com/repos/AdguardTeam/AdGuardHome/releases/latest | jq -r '.assets[] | select(.name | test("AdGuardHome_linux_amd64\\.tar\\.gz$")) .browser_download_url')"
 wget -q "$DL_URL" -O adguard.tar.gz
 tar -xzf adguard.tar.gz
+systemctl stop AdGuardHome >/dev/null 2>&1 || true
+pkill -f '/opt/AdGuardHome/AdGuardHome' >/dev/null 2>&1 || true
 install -d /opt/AdGuardHome
 cp -r AdGuardHome/* /opt/AdGuardHome/
 popd >/dev/null
@@ -291,7 +272,13 @@ dns:
     - ${WG_GW_IP}
   port: 53
   upstream_dns:
-    - 127.0.0.1:5053
+    - https://1.1.1.1/dns-query
+    - https://1.0.0.1/dns-query
+    - https://dns.google/dns-query
+  bootstrap_dns:
+    - 1.1.1.1
+    - 1.0.0.1
+    - 8.8.8.8
   filtering_enabled: true
   cache_size: 2097152
 filters_update_interval: 24
@@ -318,13 +305,7 @@ EOF
 /opt/AdGuardHome/AdGuardHome -s install || true
 systemctl enable --now AdGuardHome || true
 
-write_local_resolv_conf
-if validate_dns_resolution; then
-  echo "✓ Local DNS resolver is healthy"
-else
-  echo "⚠️ Local DNS validation failed; reverting /etc/resolv.conf to upstream resolvers"
-  write_upstream_resolv_conf
-fi
+configure_system_resolver
 
 # ---------- CayVPN Flask App Setup ----------
 echo "🐍 Setting up CayVPN Flask application..."
@@ -528,7 +509,6 @@ else
     echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
 fi
 echo "  - CayVPN: $(systemctl is-active cayvpn)"
-echo "  - Cloudflared: $(systemctl is-active cloudflared-dns)"
 echo ""
 echo "📝 Next Steps:"
 echo "  1. Visit the web interface and set your initial admin password"
