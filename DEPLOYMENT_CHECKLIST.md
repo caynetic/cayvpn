@@ -47,7 +47,6 @@ sudo ./install.sh
 sudo systemctl status wg-quick@wg0
 sudo systemctl status AdGuardHome
 sudo systemctl status cayvpn
-sudo systemctl status cloudflared-dns
 
 # All services should show "active (running)"
 
@@ -102,13 +101,11 @@ curl http://localhost:3000      # AdGuard HTTP fallback
 sudo journalctl -u cayvpn -f
 sudo journalctl -u wg-quick@wg0 -f
 sudo journalctl -u AdGuardHome -f
-sudo journalctl -u cloudflared-dns -f
 
 # Restart services
 sudo systemctl restart cayvpn
 sudo systemctl restart wg-quick@wg0
 sudo systemctl restart AdGuardHome
-sudo systemctl restart cloudflared-dns
 ```
 
 ### Cannot access web interface
@@ -229,7 +226,7 @@ Then visit the web interface again - you'll be prompted to set a new admin passw
 
 ### After Successful Installation
 
-- ✅ 4 services running (WireGuard, AdGuard Home, CayVPN, Cloudflared DNS)
+- ✅ 3 services running (WireGuard, AdGuard Home, CayVPN)
 - ✅ Web interfaces accessible via HTTPS on ports 8443 and 8444
 - ✅ Self-signed certificates generated and shared between services
 - ✅ Session storage directory created
