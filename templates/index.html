@@ -182,10 +182,13 @@
                 <a href="/qr/{{ peer_id }}" class="btn btn-info btn-sm" title="QR Code">
                   <i class="fas fa-qrcode"></i> QR
                 </a>
-                <a href="/remove/{{ peer_id }}" class="btn btn-danger btn-sm" title="Remove Peer"
-                   onclick="return confirm('Are you sure you want to remove this peer?')">
-                  <i class="fas fa-trash"></i> Remove
-                </a>
+                <form method="POST" action="/remove/{{ peer_id }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="btn btn-danger btn-sm" title="Remove Peer"
+                          onclick="return confirm('Are you sure you want to remove this peer?')">
+                    <i class="fas fa-trash"></i> Remove
+                  </button>
+                </form>
               </div>
             </td>
           </tr>

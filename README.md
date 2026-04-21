@@ -1,6 +1,6 @@
-# CayVPN - Easy WireGuard VPN Management
+# CayVPN 1.5 - Easy WireGuard VPN Management
 
-A simple, secure, and modern VPN management system featuring WireGuard, AdGuard Home DNS filtering, and a beautiful web interface. Get your private VPN server running in minutes with HTTPS security, password hashing, CSRF protection, and real-time monitoring.
+A simple, secure, and modern VPN management system featuring WireGuard, AdGuard Home DNS filtering, and a beautiful web interface. Get your private VPN server running in minutes with HTTPS security, encrypted peer-key storage, stronger session protection, CSRF protection, and real-time monitoring.
 
 ## Quick Start
 
@@ -43,15 +43,25 @@ A simple, secure, and modern VPN management system featuring WireGuard, AdGuard 
 
 That's it! Your VPN server is ready.
 
+## What's New In 1.5
+
+- ✅ **Encrypted Peer Keys At Rest** - Stored client private keys are encrypted automatically when installed with the bundled installer
+- ✅ **Safer First-Time Setup** - AdGuard bootstrap access now uses a generated random password instead of a predictable default
+- ✅ **Stronger Session Security** - Signed server-side sessions, stricter cookies, HSTS on HTTPS, and session clearing on login
+- ✅ **CSRF-Protected Admin Actions** - Logout and peer removal now require protected POST requests
+- ✅ **Tighter Default Exposure** - When HTTPS is enabled, CayVPN no longer opens the old public HTTP fallback port and AdGuard HTTP is kept as a local fallback only
+- ✅ **Safer Config Handling** - Peer names and download filenames are normalized before being written into configs or served back to browsers
+
 ## Features
 
 - ✅ **WireGuard VPN** - Fast, modern VPN protocol with easy peer management
 - ✅ **Modern Web Dashboard** - Clean, mobile-responsive interface built with Bootstrap 5
 - ✅ **QR Code Generation** - Instant mobile device setup
 - ✅ **Real-time Monitoring** - Live bandwidth tracking and connection status
-- ✅ **AdGuard Home Integration** - Built-in DNS filtering and ad-blocking (Port 3000/8444)
+- ✅ **AdGuard Home Integration** - Built-in DNS filtering and ad-blocking with HTTPS admin access
 - ✅ **Secure HTTPS** - Self-signed SSL certificates with automatic generation
 - ✅ **Password Security** - Bcrypt password hashing for both CayVPN and AdGuard
+- ✅ **Encrypted Peer Key Storage** - Private keys are encrypted at rest with an installer-managed secret
 - ✅ **CSRF Protection** - Flask-WTF security against cross-site attacks
 - ✅ **Rate Limiting** - Brute-force protection on login attempts
 - ✅ **Session Management** - Secure server-side session storage
@@ -61,9 +71,9 @@ That's it! Your VPN server is ready.
 ## Default Ports
 
 - **CayVPN Web Interface (HTTPS)**: `8443`
-- **CayVPN Web Interface (HTTP)**: `8888` (fallback if certificates missing)
+- **CayVPN Web Interface (HTTP)**: `8888` when HTTPS is disabled or certificates are unavailable
 - **AdGuard Home (HTTPS)**: `8444`
-- **AdGuard Home (HTTP)**: `3000`
+- **AdGuard Home (HTTP)**: `3000` local fallback only when HTTPS is enabled
 - **WireGuard VPN**: `43210/UDP`
 - **DNS (AdGuard)**: `53/UDP` (internal VPN network only - 10.8.0.1)
 
@@ -71,10 +81,11 @@ That's it! Your VPN server is ready.
 
 - **HTTPS Encryption**: Self-signed SSL certificates auto-generated during installation
 - **Password Hashing**: Bcrypt-based password storage (no plaintext passwords)
+- **Peer Key Encryption**: Stored WireGuard client private keys are encrypted at rest by default when installed with `install.sh`
 - **CSRF Protection**: Flask-WTF prevents cross-site request forgery attacks
 - **Rate Limiting**: Login brute-force protection (5 attempts per minute)
-- **Session Security**: Server-side session storage with 1-hour timeout
-- **Secure Headers**: X-Frame-Options, CSP, X-Content-Type-Options, and more
+- **Session Security**: Signed server-side session storage with a 1-hour timeout
+- **Secure Headers**: X-Frame-Options, HSTS, CSP, X-Content-Type-Options, cache-control hardening, and more
 - **Unified Authentication**: Single password for both CayVPN and AdGuard Home
 
 ## Network Configuration
@@ -249,7 +260,22 @@ To update your CayVPN installation to the latest version:
 ```bash
 cd ~/cayvpn  # or wherever you installed CayVPN
 git pull origin main
-sudo systemctl restart cayvpn
+sudo ./install.sh
+```
+
+For `v1.5`, rerunning `install.sh` is recommended because it:
+
+- refreshes the hardened firewall defaults
+- creates `/etc/cayvpn/cayvpn.env` with persistent app secrets
+- enables encrypted peer-key storage for future peers
+- migrates existing stored peer keys to encrypted-at-rest form on startup
+
+After updating, verify the services are running:
+
+```bash
+sudo systemctl status cayvpn
+sudo systemctl status AdGuardHome
+sudo systemctl status wg-quick@wg0
 ```
 
 **Important**: If you've made local changes to any files (like `install.sh`), you'll need to either:
@@ -271,11 +297,15 @@ sudo systemctl restart cayvpn
   # To restore your changes later: git stash pop
   ```
 
-After updating, verify the service is running:
+If you prefer a code-only refresh without rerunning the installer, you can still do:
 
 ```bash
-sudo systemctl status cayvpn
+cd ~/cayvpn
+git pull origin main
+sudo systemctl restart cayvpn
 ```
+
+But that path will not provision the new persistent secrets automatically on older installs.
 
 ## License
 

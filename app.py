@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify
-import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, secrets
+import os, sqlite3, subprocess, qrcode, io, re, base64, tempfile, json, secrets, hashlib
 from functools import wraps
 from flask_session import Session
 from flask_limiter import Limiter
@@ -9,6 +9,7 @@ import logging
 import bcrypt
 
 app = Flask(__name__)
+ENCRYPTED_VALUE_PREFIX = "enc::"
 
 # Password hashing utilities
 def hash_password(password):
@@ -29,16 +30,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Version information
-__version__ = "1.0.0"
+__version__ = "1.5.0"
 
 # Generate secure random secret key if not provided via environment
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+DATA_ENCRYPTION_SECRET = (
+    os.environ.get('CAYVPN_DATA_SECRET')
+    or os.environ.get('FLASK_SECRET_KEY')
+    or ''
+).strip()
 
 # Configure Flask-Session for secure server-side session storage
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sessions')
 app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+
+# Secure session configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=False,  # Will be set to True if HTTPS is enabled
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Strict',
+    SESSION_COOKIE_NAME='cayvpn_session',
+    PERMANENT_SESSION_LIFETIME=3600,  # 1 hour
+    MAX_CONTENT_LENGTH=1024 * 1024,  # Forms are tiny; reject oversized payloads early.
+)
 
 # Initialize Flask-Session
 Session(app)
@@ -55,14 +72,6 @@ app.config['WTF_CSRF_ENABLED'] = True
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
-
-# Secure session configuration
-app.config.update(
-    SESSION_COOKIE_SECURE=False,  # Will be set to True if HTTPS is enabled
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    PERMANENT_SESSION_LIFETIME=3600,  # 1 hour
-)
 
 # HTTPS Configuration
 ENABLE_HTTPS = os.environ.get('ENABLE_HTTPS', '0') == '1'
@@ -105,14 +114,24 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+    response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+    if ENABLE_HTTPS:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     # Content Security Policy - allow inline styles/scripts for Bootstrap but restrict others
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "img-src 'self' data:; "
-        "font-src 'self' https://cdn.jsdelivr.net;"
+        "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;"
     )
+    if request.path != url_for('static', filename='style.css') and not request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow'
     return response
 
 # WireGuard Configuration (can be overridden with environment variables)
@@ -293,6 +312,91 @@ logger.info(f"Server IP: {SERVER_IP}")
 logger.info(f"Region Info:\n{SERVER_REGION}")
 logger.info(f"{'='*50}\n")
 
+
+def get_data_cipher():
+    """Return a Fernet cipher for app data encryption, or None if disabled/unavailable."""
+    if not DATA_ENCRYPTION_SECRET:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError:
+        logger.error("cryptography is required when CAYVPN_DATA_SECRET is configured")
+        return None
+    digest = hashlib.sha256(DATA_ENCRYPTION_SECRET.encode('utf-8')).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_sensitive_value(value):
+    if not value or value.startswith(ENCRYPTED_VALUE_PREFIX):
+        return value
+    cipher = get_data_cipher()
+    if not cipher:
+        return value
+    return ENCRYPTED_VALUE_PREFIX + cipher.encrypt(value.encode('utf-8')).decode('utf-8')
+
+
+def decrypt_sensitive_value(value):
+    if not value or not value.startswith(ENCRYPTED_VALUE_PREFIX):
+        return value
+    cipher = get_data_cipher()
+    if not cipher:
+        raise RuntimeError("Encrypted peer data is present but CAYVPN_DATA_SECRET is unavailable")
+    try:
+        token = value[len(ENCRYPTED_VALUE_PREFIX):].encode('utf-8')
+        return cipher.decrypt(token).decode('utf-8')
+    except Exception as exc:
+        raise RuntimeError("Encrypted peer data could not be decrypted") from exc
+
+
+def normalize_peer_name(name):
+    normalized = re.sub(r'\s+', ' ', (name or '').strip())
+    if not normalized:
+        raise ValueError("Peer name is required")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in normalized):
+        raise ValueError("Peer name cannot contain control characters")
+    return normalized
+
+
+def safe_wg_comment(name):
+    return re.sub(r'[\r\n]+', ' ', name or '').strip() or 'Peer'
+
+
+def safe_download_name(name):
+    filename = re.sub(r'[^A-Za-z0-9._-]+', '_', name or '').strip('._')
+    return filename or 'peer'
+
+
+def verify_and_migrate_private_keys():
+    """Encrypt existing plaintext peer private keys when a data secret is configured."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM peers WHERE privkey LIKE ?", (f"{ENCRYPTED_VALUE_PREFIX}%",))
+    encrypted_count = cur.fetchone()[0]
+
+    if encrypted_count and not get_data_cipher():
+        conn.close()
+        raise RuntimeError("Encrypted peer keys exist but CAYVPN_DATA_SECRET or cryptography is unavailable")
+
+    if not DATA_ENCRYPTION_SECRET:
+        cur.execute("SELECT COUNT(*) FROM peers WHERE privkey IS NOT NULL AND privkey NOT LIKE ?", (f"{ENCRYPTED_VALUE_PREFIX}%",))
+        plaintext_count = cur.fetchone()[0]
+        conn.close()
+        if plaintext_count:
+            logger.warning("Peer private keys are stored in plaintext. Set CAYVPN_DATA_SECRET to encrypt them at rest.")
+        return
+
+    cur.execute("SELECT id, privkey FROM peers WHERE privkey IS NOT NULL AND privkey NOT LIKE ?", (f"{ENCRYPTED_VALUE_PREFIX}%",))
+    rows = cur.fetchall()
+    if not rows:
+        conn.close()
+        return
+
+    for peer_id, privkey in rows:
+        cur.execute("UPDATE peers SET privkey=? WHERE id=?", (encrypt_sensitive_value(privkey), peer_id))
+    conn.commit()
+    conn.close()
+    logger.info("Encrypted %d stored peer private key(s) at rest", len(rows))
+
 # === Database Setup ===
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -333,6 +437,7 @@ def init_db():
     conn.close()
 
 init_db()
+verify_and_migrate_private_keys()
 
 # Generate server keys if not exist
 if not os.path.exists(WG_DIR):
@@ -365,7 +470,22 @@ def get_peers():
     cur.execute("SELECT id, name, public_key, privkey, ip FROM peers")
     rows = cur.fetchall()
     conn.close()
-    return rows
+    return [
+        (peer_id, name, public_key, decrypt_sensitive_value(privkey), ip)
+        for peer_id, name, public_key, privkey, ip in rows
+    ]
+
+
+def get_peer(peer_id):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, public_key, privkey, ip FROM peers WHERE id=?", (peer_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    db_peer_id, name, public_key, privkey, ip = row
+    return (db_peer_id, name, public_key, decrypt_sensitive_value(privkey), ip)
 
 def get_next_ip():
     peers = get_peers()
@@ -511,9 +631,6 @@ def update_adguard_password(new_password):
             config_content = config_content.replace(old_password_line, new_password_line)
         else:
             print(f"✗ Could not find password field in AdGuard config")
-            # Debug: show lines containing 'password'
-            password_lines = [line for line in config_content.split('\n') if 'password' in line.lower()]
-            print(f"Debug - password-related lines: {password_lines}")
             return False
         
         # Write the updated config back
@@ -579,7 +696,7 @@ def write_wg_conf():
         for _, name, pubkey, _, ip in peers:
             peer_block = [
                 "[Peer]",
-                f"# {name}",
+                f"# {safe_wg_comment(name)}",
                 f"PublicKey = {pubkey}",
                 f"AllowedIPs = {ip}/{WG_CLIENT_ADDRESS_PREFIX}",
             ]
@@ -817,13 +934,17 @@ def login():
             # Set initial password
             update_admin_password(password)
             update_adguard_password(password)
+            session.clear()
             session["logged_in"] = True
+            session.permanent = True
             flash("Welcome! Your admin password has been set for both CayVPN and AdGuard Home.", "success")
             return redirect(url_for("index"))
         
         # Normal login
         if username == ADMIN_USER and verify_password(password, ADMIN_PASS):
+            session.clear()
             session["logged_in"] = True
+            session.permanent = True
             return redirect(url_for("index"))
         else:
             return render_template("login.html", error="Invalid credentials")
@@ -833,7 +954,7 @@ def login():
         return render_template("login.html", first_time=True)
     return render_template("login.html")
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
     session.clear()  # Clear entire session for security
     return redirect(url_for("login"))
@@ -867,13 +988,9 @@ def add_peer():
     """Add a new WireGuard peer"""
     if request.method == "POST":
         try:
-            name = request.form.get("name", "").strip()
+            name = normalize_peer_name(request.form.get("name", ""))
             
             # Input validation
-            if not name:
-                flash("Peer name is required", "error")
-                return render_template("add_peer.html")
-            
             if len(name) > 100:
                 flash("Peer name must be 100 characters or less", "error")
                 return render_template("add_peer.html")
@@ -893,7 +1010,7 @@ def add_peer():
             cur = conn.cursor()
             try:
                 cur.execute("INSERT INTO peers (name, public_key, privkey, ip) VALUES (?, ?, ?, ?)", 
-                           (name, pub_key, priv_key, ip))
+                           (name, pub_key, encrypt_sensitive_value(priv_key), ip))
                 conn.commit()
                 peer_id = cur.lastrowid
                 
@@ -916,6 +1033,9 @@ def add_peer():
         except subprocess.CalledProcessError as e:
             logger.error(f"Error generating WireGuard keys: {e}")
             flash("Failed to generate WireGuard keys. Is WireGuard installed?", "error")
+            return render_template("add_peer.html")
+        except ValueError as e:
+            flash(str(e), "error")
             return render_template("add_peer.html")
         except Exception as e:
             logger.error(f"Error adding peer: {type(e).__name__}: {e}")
@@ -1027,7 +1147,7 @@ def import_peers():
         flash(f"Failed to import peers: {str(e)}", "error")
         return redirect(url_for("index"))
 
-@app.route("/remove/<int:peer_id>")
+@app.route("/remove/<int:peer_id>", methods=["POST"])
 @login_required
 def remove_peer(peer_id):
     try:
@@ -1061,16 +1181,16 @@ def remove_peer(peer_id):
 @app.route("/config/<int:peer_id>")
 @login_required
 def download_config(peer_id):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT name, public_key, privkey, ip FROM peers WHERE id=?", (peer_id,))
-    peer = cur.fetchone()
-    conn.close()
+    peer = get_peer(peer_id)
 
     if not peer:
         return "Peer not found", 404
 
-    name, pubkey, privkey, ip = peer
+    _, name, pubkey, privkey, ip = peer
+    if not privkey:
+        flash("This peer does not have a stored private key, so its config cannot be downloaded.", "warning")
+        return redirect(url_for("index"))
+
     server_pub = open(SERVER_PUB).read().strip()
     config_lines = [
         "[Interface]",
@@ -1098,21 +1218,21 @@ def download_config(peer_id):
     buf = io.BytesIO()
     buf.write(config.encode())
     buf.seek(0)
-    return send_file(buf, as_attachment=True, download_name=f"{name}.conf")
+    return send_file(buf, as_attachment=True, download_name=f"{safe_download_name(name)}.conf")
 
 @app.route("/qr/<int:peer_id>")
 @login_required
 def show_qr(peer_id):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT name, public_key, privkey, ip FROM peers WHERE id=?", (peer_id,))
-    peer = cur.fetchone()
-    conn.close()
+    peer = get_peer(peer_id)
 
     if not peer:
         return "Peer not found", 404
 
-    name, pubkey, privkey, ip = peer
+    _, name, pubkey, privkey, ip = peer
+    if not privkey:
+        flash("This peer does not have a stored private key, so its QR code cannot be generated.", "warning")
+        return redirect(url_for("index"))
+
     server_pub = open(SERVER_PUB).read().strip()
     qr_lines = [
         "[Interface]",

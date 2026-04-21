@@ -42,12 +42,21 @@
               <i class="fas fa-external-link-alt me-1"></i>Services
             </a>
             <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <li><a class="dropdown-item" href="http://{{ server_ip }}:3000" target="_blank"><i class="fas fa-shield-alt me-2"></i>AdGuard Home</a></li>
+              <li>
+                <a class="dropdown-item" href="{% if adguard_https_enabled %}https://{{ server_ip }}:{{ adguard_https_port }}{% else %}http://{{ server_ip }}:{{ adguard_http_port }}{% endif %}" target="_blank">
+                  <i class="fas fa-shield-alt me-2"></i>AdGuard Home
+                </a>
+              </li>
               <li><a class="dropdown-item" href="/test_dns"><i class="fas fa-dna me-2"></i>Test DNS</a></li>
             </ul>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a>
+            <form method="POST" action="/logout" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="nav-link btn btn-link border-0 p-0">
+                <i class="fas fa-sign-out-alt me-1"></i>Logout
+              </button>
+            </form>
           </li>
           <li class="nav-item">
             <span class="nav-link text-white-50" style="cursor: default;">v{{ version }}</span>

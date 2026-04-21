@@ -1,6 +1,6 @@
 # CayVPN Deployment Checklist
 
-Complete deployment guide for CayVPN v1.0.0 - a secure WireGuard VPN management system with AdGuard Home DNS filtering, HTTPS encryption, password hashing, CSRF protection, and real-time monitoring.
+Complete deployment guide for CayVPN v1.5.0 - a secure WireGuard VPN management system with AdGuard Home DNS filtering, HTTPS encryption, encrypted peer-key storage, password hashing, CSRF protection, and real-time monitoring.
 
 Before deploying to your server, verify these items:
 
@@ -16,10 +16,10 @@ Before deploying to your server, verify these items:
 ### 2. Network Requirements
 - [ ] Ports to be opened:
   - `43210/UDP` - WireGuard VPN
-  - `8888/TCP` - HTTP web interface (fallback)
   - `8443/TCP` - HTTPS web interface (primary)
   - `8444/TCP` - AdGuard Home UI HTTPS (primary)
-  - `3000/TCP` - AdGuard Home UI HTTP (fallback)
+  - `8888/TCP` - CayVPN HTTP only if HTTPS is disabled or certificates are unavailable
+  - `3000/TCP` - AdGuard Home HTTP only if HTTPS is disabled
   - `53/TCP+UDP` - DNS (internal only, via WireGuard - 10.8.0.1)
 
 ### 3. Installation Steps
@@ -58,24 +58,23 @@ sudo iptables -L -n | grep 43210
 ls -la /etc/ssl/certs/cayvpn.crt
 ls -la /etc/ssl/private/cayvpn.key
 
-# Verify AdGuard Home certificates
-ls -la /opt/AdGuardHome/cayvpn.crt
-ls -la /opt/AdGuardHome/cayvpn.key
+# Verify persistent CayVPN secrets
+sudo ls -la /etc/cayvpn/cayvpn.env
 
 # Test web interfaces
 curl -k https://localhost:8443  # CayVPN - Should return HTML
 curl -k https://localhost:8444  # AdGuard - Should return HTML
-curl http://localhost:8888      # CayVPN HTTP fallback
-curl http://localhost:3000      # AdGuard HTTP fallback
+curl http://localhost:8888      # CayVPN HTTP fallback (only if HTTPS disabled or certs missing)
+curl http://127.0.0.1:3000      # AdGuard HTTP local fallback (only if HTTPS disabled or for local troubleshooting)
 ```
 
 ### 5. First Access
 
 1. **Open your browser** and navigate to:
    - **CayVPN Primary**: `https://YOUR_SERVER_IP:8443`
-   - **CayVPN Fallback**: `http://YOUR_SERVER_IP:8888`
    - **AdGuard Home Primary**: `https://YOUR_SERVER_IP:8444`
-   - **AdGuard Home Fallback**: `http://YOUR_SERVER_IP:3000`
+   - **CayVPN HTTP Fallback**: `http://YOUR_SERVER_IP:8888` only when HTTPS is disabled or unavailable
+   - **AdGuard HTTP Fallback**: `http://127.0.0.1:3000` for local-only troubleshooting
 
 2. **Accept SSL warning** (self-signed certificate)
    - Click "Advanced" → "Proceed to site"
@@ -126,7 +125,6 @@ sudo journalctl -u cayvpn --no-pager -n 50
 ```bash
 # Regenerate certificates for both services
 sudo rm /etc/ssl/certs/cayvpn.crt /etc/ssl/private/cayvpn.key
-sudo rm /opt/AdGuardHome/cayvpn.crt /opt/AdGuardHome/cayvpn.key
 sudo systemctl restart cayvpn
 sudo systemctl restart AdGuardHome
 
@@ -215,11 +213,10 @@ Then visit the web interface again - you'll be prompted to set a new admin passw
    sudo tar czf cayvpn-backup-$(date +%F).tar.gz \
        wg.db \
        /etc/wireguard/ \
+       /etc/cayvpn/cayvpn.env \
        /etc/ssl/certs/cayvpn.crt \
        /etc/ssl/private/cayvpn.key \
-       /opt/AdGuardHome/AdGuardHome.yaml \
-       /opt/AdGuardHome/cayvpn.crt \
-       /opt/AdGuardHome/cayvpn.key
+       /opt/AdGuardHome/AdGuardHome.yaml
    ```
 
 ## 📊 Expected Behavior
@@ -232,19 +229,23 @@ Then visit the web interface again - you'll be prompted to set a new admin passw
 - ✅ Session storage directory created
 - ✅ Firewall rules configured
 - ✅ First-time password setup required
+- ✅ Random AdGuard bootstrap password generated during install
 - ✅ Bcrypt password hashing enabled
+- ✅ Stored peer private keys encrypted at rest
 - ✅ CSRF protection active on all forms
 - ✅ Rate limiting on login attempts
 
 ### Known Behavior
 
 - ⚠️ Browser shows SSL warning (expected for self-signed cert)
-- ⚠️ HTTP fallback available on ports 8888 (CayVPN) and 3000 (AdGuard)
+- ⚠️ CayVPN HTTP on `8888` is only expected when HTTPS is disabled or certificates are missing
+- ⚠️ AdGuard HTTP on `3000` is intended as a local fallback when HTTPS is enabled
 - ⚠️ AdGuard Home uses same admin password as CayVPN
 - ✅ Rate limiting: Max 5 login attempts per minute
-- ✅ CSRF tokens on all forms
-- ✅ Secure session cookies (HttpOnly, SameSite, 1-hour timeout)
+- ✅ CSRF tokens on all forms and state-changing admin actions
+- ✅ Secure session cookies (HttpOnly, SameSite=Strict, 1-hour timeout)
 - ✅ Password hashing with bcrypt (cost factor 10)
+- ✅ HSTS enabled when HTTPS is active
 - ✅ Server-side session storage in `sessions/` directory
 
 ## 🎯 Success Criteria
@@ -282,17 +283,6 @@ WG_PORT=43210                           # WireGuard UDP port
 WG_IFACE=wg0                           # WireGuard interface
 WG_SUBNET_V4=10.8.0.1/24              # VPN subnet
 
-```bash
-## 📝 Configuration Variables
-
-Default values (can be changed before installation):
-
-```bash
-# WireGuard Configuration
-WG_PORT=43210                           # WireGuard UDP port
-WG_IFACE=wg0                           # WireGuard interface
-WG_SUBNET_V4=10.8.0.1/24              # VPN subnet
-
 # HTTPS Configuration
 ENABLE_HTTPS=1                         # Enable HTTPS (1=yes, 0=no) - install.sh default
 HTTPS_PORT=8443                        # CayVPN HTTPS port
@@ -301,7 +291,7 @@ SSL_KEY_PATH=/etc/ssl/private/cayvpn.key
 
 # AdGuard Home Configuration
 ADGUARD_HTTPS_PORT=8444                # AdGuard Home HTTPS port
-ADGUARD_HTTP_PORT=3000                 # AdGuard Home HTTP fallback
+ADGUARD_HTTP_PORT=3000                 # AdGuard Home HTTP local fallback / non-HTTPS mode
 ADGUARD_CONFIG=/opt/AdGuardHome/AdGuardHome.yaml
 
 # Security Configuration
@@ -309,10 +299,12 @@ WTF_CSRF_ENABLED=True                  # CSRF protection
 PERMANENT_SESSION_LIFETIME=3600        # Session timeout (1 hour)
 SESSION_COOKIE_SECURE=True             # Secure cookies (HTTPS only)
 SESSION_COOKIE_HTTPONLY=True           # HttpOnly cookies
-SESSION_COOKIE_SAMESITE=Lax            # SameSite policy
+SESSION_COOKIE_SAMESITE=Strict         # SameSite policy
+CAYVPN_ENV_FILE=/etc/cayvpn/cayvpn.env # Installer-managed persistent secrets
+CAYVPN_DATA_SECRET=<generated>         # Encrypts stored peer private keys at rest
 ```
 
-**Note**: ENABLE_HTTPS defaults to 1 in install.sh but 0 in app.py. The install.sh setting takes precedence during installation.
+**Note**: `install.sh` provisions the production systemd environment, including HTTPS and the persistent secrets file in `/etc/cayvpn/cayvpn.env`, so the installer-managed values are the ones that matter on a standard deployment.
 
 ## 📦 Python Dependencies
 
@@ -326,6 +318,7 @@ Flask-Limiter==3.5.0
 Flask-WTF==1.2.1
 gunicorn==21.2.0
 bcrypt==4.1.2
+cryptography>=42,<46
 ```
 
 To customize before installation:

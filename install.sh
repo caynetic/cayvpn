@@ -15,7 +15,10 @@ ENABLE_IPV6="${ENABLE_IPV6:-1}"
 
 ADGH_ADMIN_PORT="${ADGH_ADMIN_PORT:-3000}"
 ADMIN_USER="${ADMIN_USER:-admin}"
-ADMIN_PASS="${ADMIN_PASS:-ChangeThisNow_!#}"
+ADMIN_PASS="${ADMIN_PASS:-}"
+ADGUARD_BOOTSTRAP_PASSWORD_GENERATED=0
+CAYVPN_ENV_DIR="${CAYVPN_ENV_DIR:-/etc/cayvpn}"
+CAYVPN_ENV_FILE="${CAYVPN_ENV_FILE:-${CAYVPN_ENV_DIR}/cayvpn.env}"
 
 # HTTPS Configuration
 ENABLE_HTTPS="${ENABLE_HTTPS:-1}"
@@ -28,6 +31,17 @@ OUT_IFACE="${OUT_IFACE:-$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \(
 if [[ -z "${OUT_IFACE}" ]]; then echo "Could not auto-detect OUT_IFACE"; exit 1; fi
 
 export DEBIAN_FRONTEND=noninteractive
+
+generate_random_password() {
+    head -c 24 /dev/urandom | base64 | tr -d '\n' | tr '/+' 'AB'
+}
+
+# AdGuard needs a bootstrap password before the CayVPN web UI is configured.
+# If the caller did not provide one, generate a random temporary password.
+if [[ -z "${ADMIN_PASS}" ]]; then
+    ADMIN_PASS="$(generate_random_password)"
+    ADGUARD_BOOTSTRAP_PASSWORD_GENERATED=1
+fi
 
 # ---------- DNS Helpers ----------
 write_local_resolv_conf() {
@@ -231,9 +245,9 @@ WG_GW_IP="$(ip -j addr show ${WG_IFACE} | jq -r '.[0].addr_info[] | select(.fami
 [[ -z "${WG_GW_IP}" ]] && WG_GW_IP="10.8.0.1"
 
 # ---------- Admin Password ----------
-BCRYPT_HASH="$(python3 - <<'PY'
-import bcrypt, os
-pwd = os.environ.get("ADMIN_PASS","ChangeThisNow_!#").encode()
+BCRYPT_HASH="$(python3 - "${ADMIN_PASS}" <<'PY'
+import bcrypt, sys
+pwd = sys.argv[1].encode()
 print(bcrypt.hashpw(pwd, bcrypt.gensalt()).decode())
 PY
 )"
@@ -341,6 +355,33 @@ pip install -r requirements.txt
 mkdir -p sessions
 chmod 700 sessions
 
+# Create persistent app secrets used for session signing and peer-key encryption
+echo "🔐 Preparing CayVPN application secrets..."
+install -d -m 700 "${CAYVPN_ENV_DIR}"
+if [[ -f "${CAYVPN_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${CAYVPN_ENV_FILE}"
+fi
+if [[ -z "${FLASK_SECRET_KEY:-}" ]]; then
+    FLASK_SECRET_KEY="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+fi
+if [[ -z "${CAYVPN_DATA_SECRET:-}" ]]; then
+    CAYVPN_DATA_SECRET="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+fi
+cat > "${CAYVPN_ENV_FILE}" <<EOF
+FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+CAYVPN_DATA_SECRET=${CAYVPN_DATA_SECRET}
+EOF
+chmod 600 "${CAYVPN_ENV_FILE}"
+
 # Create systemd service for CayVPN
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     EXEC_START="$(pwd)/venv/bin/gunicorn --workers 1 --bind 0.0.0.0:${HTTPS_PORT} --certfile ${SSL_CERT_PATH} --keyfile ${SSL_KEY_PATH} app:app"
@@ -358,6 +399,7 @@ Wants=AdGuardHome.service wg-quick@${WG_IFACE}.service
 Type=simple
 User=$USER
 WorkingDirectory=$(pwd)
+EnvironmentFile=-${CAYVPN_ENV_FILE}
 ExecStart=${EXEC_START}
 Restart=always
 RestartSec=10
@@ -377,13 +419,16 @@ systemctl enable cayvpn
 
 # ---------- Firewall Rules ----------
 echo "🔥 Setting up firewall rules..."
-iptables -C INPUT -p tcp --dport 8888 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8888 -j ACCEPT
 iptables -C INPUT -p udp --dport ${WG_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p udp --dport ${WG_PORT} -j ACCEPT
 iptables -C INPUT -i lo -p udp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p udp --dport 53 -j ACCEPT
 iptables -C INPUT -i lo -p tcp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -i lo -p tcp --dport 53 -j ACCEPT
-iptables -C INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
+    iptables -D INPUT -p tcp --dport 8888 -j ACCEPT 2>/dev/null || true
+    iptables -D INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || true
     iptables -C INPUT -p tcp --dport 8444 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8444 -j ACCEPT
+else
+    iptables -C INPUT -p tcp --dport 8888 -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport 8888 -j ACCEPT
+    iptables -C INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT 2>/dev/null || iptables -A INPUT -p tcp --dport ${ADGH_ADMIN_PORT} -j ACCEPT
 fi
 iptables -C INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p udp --dport 53 ! -i ${WG_IFACE} -j DROP
 iptables -C INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 53 ! -i ${WG_IFACE} -j DROP
@@ -480,12 +525,15 @@ echo "================================="
 
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     echo "🔒 CayVPN Web Interface: https://${PUB_IP}:${HTTPS_PORT}"
-    echo "🔓 HTTP Fallback: http://${PUB_IP}:8888 (only if enabled)"
 else
     echo "🌐 CayVPN Web Interface: http://${PUB_IP}:8888 (only if enabled)"
 fi
 
 echo "🔐 Initial Setup: Visit the web interface to set your admin password"
+if [[ "${ADGUARD_BOOTSTRAP_PASSWORD_GENERATED}" == "1" ]]; then
+    echo "🔒 AdGuard bootstrap access: a temporary random password was generated during install"
+    echo "   It will be replaced the first time you complete CayVPN's web setup."
+fi
 echo ""
 echo "📡 WireGuard: ${WG_IFACE} UDP ${WG_PORT} (${WG_SUBNET_V4})"
 echo "🛡️ DNS Server: ${WG_GW_IP}:53"
@@ -504,7 +552,7 @@ echo "  - WireGuard: $(systemctl is-active wg-quick@${WG_IFACE})"
 echo "  - AdGuard Home: $(systemctl is-active AdGuardHome)"
 if [[ "${ENABLE_HTTPS}" == "1" ]]; then
     echo "    - AdGuard HTTPS: https://${PUB_IP}:8444"
-    echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
+    echo "    - AdGuard HTTP: http://127.0.0.1:${ADGH_ADMIN_PORT} (local fallback only)"
 else
     echo "    - AdGuard HTTP: http://${PUB_IP}:${ADGH_ADMIN_PORT}"
 fi
