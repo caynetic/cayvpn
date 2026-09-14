@@ -1,0 +1,139 @@
+{
+  "components": {
+    "build_metadata": {
+      "amneziawg_go": {
+        "commit": "1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1",
+        "source": "https://github.com/amnezia-vpn/amneziawg-go",
+        "version": "v3.1.20260814"
+      },
+      "amneziawg_tools": {
+        "commit": "ee0f0a9aa34ff0a0da4b3433b9512781cfe02843",
+        "source": "https://github.com/amnezia-vpn/amneziawg-tools",
+        "version": "v3.1.20260812"
+      },
+      "hev_socks5_tunnel": {
+        "commit": "9a06bc6e7989da54e3d32ff701ef7a7ce4995d3a",
+        "source": "https://github.com/heiher/hev-socks5-tunnel",
+        "version": "2.17.1"
+      },
+      "lego": {
+        "commit": "589c84af4f26629fbdaa7fbca712f806632ccb7e",
+        "source": "https://github.com/go-acme/lego",
+        "version": "v5.3.1"
+      },
+      "schema_version": 1
+    },
+    "files": {
+      "BUILD-METADATA.json": "c95747eb8128abc1be1f1696f847180ec69db13910efaed4858f31957c875222",
+      "SHA256SUMS": "f37192bf1e7514c41b0ca3fbe855c111b1e77f69dfa0749a0f0119ecae0727b1",
+      "THIRD_PARTY_NOTICES.md": "d52afc55a93f76bab4d3ebc603e0334e76327bd5d0e752cbbc2b1a431aaab52f",
+      "amd64/amneziawg-go": "26a09dbc611098c73b715d938c7b5920ea057473625326d010d42f7bc743cef8",
+      "amd64/awg": "69d1349275a1a97853478c75b62019fcd6707022f231c794e7f45b00e3d0f8e9",
+      "amd64/awg-quick": "f4bb0f5d63665ade87f0cb9f2185c43515cff09868637eb311f98f65a318722c",
+      "amd64/hev-socks5-tunnel": "a98763f18b0ad1f72a903221008488275f2bf60be00028886f9fa41622df6a03",
+      "amd64/lego": "55e288109e13e166d2b35f177bc74e2b31cd41e816cca540084d848ebf0876b6",
+      "arm64/amneziawg-go": "eba7de55224de540f70d63a1935759346a71f1b62221f4527628ddcfd8eb3b8e",
+      "arm64/awg": "82ec6ffdfa0ff4dc3b385cdf5355910bb61b1c11344fcd0b870497a593472470",
+      "arm64/awg-quick": "f4bb0f5d63665ade87f0cb9f2185c43515cff09868637eb311f98f65a318722c",
+      "arm64/hev-socks5-tunnel": "958206dcebcdc390cdc4d5b88c8504ec81483e2a04b46d37c835a179830c86ba",
+      "arm64/lego": "bd9d92a464c39f504e5d9716ffaa203e781117d3e05c4834647f50010f9d60f5",
+      "licenses/amneziawg-go-LICENSE": "9ec168d1f4af53f293be8bd2e882588f0e35af0334292d4ca4e5ede84408420e",
+      "licenses/amneziawg-tools-COPYING": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+      "licenses/hev-socks5-tunnel-LICENSE": "3cca1a91ca82e9b9c41852945ef15858f932828ceeb765b86bc1fe3f39127514",
+      "licenses/lego-LICENSE": "bf12923e71046c564f4163c00c3aa6b3581b51858f099a035f5baf2216addf6e",
+      "source/amneziawg-tools-source.tar.gz": "42f000372de1418b66f5607481b9027021ab99eb9840b2059a6616e521e07cad"
+    }
+  },
+  "python_version": "3.12",
+  "release_version": "2.0.1",
+  "requirements_sha256": "58c451087bb3fc6758d7ff8599badf35566932f66b793109c3659466fd0ac017",
+  "schema_version": 1,
+  "wheelhouses": {
+    "amd64": {
+      "files": {
+        "Flask_Limiter-3.5.0-py3-none-any.whl": "dbda4174f44e6cb858c6eb75e7488186f2977dd5d33d7028ba1aabf179de1bee",
+        "alembic-1.19.1-py3-none-any.whl": "b39018cb3d9413a19cbd54cf3c02ad33998641f0538eb77413a488a21c3e14be",
+        "bcrypt-4.1.2-cp39-abi3-manylinux_2_28_x86_64.whl": "2a298db2a8ab20056120b45e86c00a0a5eb50ec4075b6142db35f593b97cb3fb",
+        "blinker-1.9.0-py3-none-any.whl": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+        "cachelib-0.16.1-py3-none-any.whl": "365ba096b1df85fe1e6df26716026c929076b218eb359c2b02c9a0674d26fe01",
+        "cbor2-6.1.4-cp312-cp312-manylinux_2_28_x86_64.whl": "310f3dfb296ba48fe9b63c5cf26e691e3548a1eae6901d2f0c18e941d151f220",
+        "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+        "click-8.4.2-py3-none-any.whl": "e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76",
+        "cryptography-50.0.1-cp311-abi3-manylinux_2_34_x86_64.whl": "51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a",
+        "deprecated-1.3.1-py2.py3-none-any.whl": "597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f",
+        "flask-3.1.3-py3-none-any.whl": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+        "flask_session-0.8.0-py3-none-any.whl": "5dae6e9ddab334f8dc4dea4305af37851f4e7dc0f484caf3351184001195e3b7",
+        "flask_wtf-1.2.1-py3-none-any.whl": "fa6793f2fb7e812e0fe9743b282118e581fb1b6c45d414b8af05e659bd653287",
+        "greenlet-3.5.5-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl": "147b25a42e5ca5be3d42356e8f608b37af715a1c196e9bf9d1627f3341adfe1d",
+        "gunicorn-26.2.0-py3-none-any.whl": "bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3",
+        "itsdangerous-2.2.0-py3-none-any.whl": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+        "jinja2-3.1.6-py3-none-any.whl": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+        "limits-5.8.0-py3-none-any.whl": "ae1b008a43eb43073c3c579398bd4eb4c795de60952532dc24720ab45e1ac6b8",
+        "mako-1.4.1-py3-none-any.whl": "a359d9a94a541213958742b2698d0a7757bb83551767bc468a74b9905aba9617",
+        "markdown_it_py-4.2.0-py3-none-any.whl": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a",
+        "markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d",
+        "mdurl-0.1.2-py3-none-any.whl": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+        "msgspec-0.21.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "21995e74b5c598c2e004110ad66ec7f1b8c20bf2bcf3b2de8fd9a3094422d3ff",
+        "ordered_set-4.1.0-py3-none-any.whl": "046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562",
+        "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+        "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": "78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91",
+        "pyasn1-0.6.4-py3-none-any.whl": "deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b",
+        "pycparser-3.0-py3-none-any.whl": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+        "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+        "pyopenssl-26.4.0-py3-none-any.whl": "f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c",
+        "pypng-0.20220715.0-py3-none-any.whl": "4a43e969b8f5aaafb2a415536c1a8ec7e341cd6a3f957fd5b5f32a4cfeed902c",
+        "qrcode-7.4.2-py3-none-any.whl": "581dca7a029bcb2deef5d01068e39093e80ef00b4a61098a2182eac59d01643a",
+        "rich-13.9.4-py3-none-any.whl": "6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90",
+        "sqlalchemy-2.0.52-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "8738008376d22f30f411ea3efecf39b51110b6996d80bb73786f30bcfdd5fd3b",
+        "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "webauthn-2.7.1-py3-none-any.whl": "d57e9613c65e0c6a4db7ee715fb49ebdf3c4a6eb3979729eeb497c99105e8181",
+        "werkzeug-3.1.8-py3-none-any.whl": "63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50",
+        "wrapt-2.3.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl": "5d221a6e6ddd302b8397433184e96b59f259f50024b854db1c411a881586b6b8",
+        "wtforms-3.2.2-py3-none-any.whl": "72b90d5d921bd3119252069cf0301e9c13915f9e52792652bc91c5dda4b79e56"
+      }
+    },
+    "arm64": {
+      "files": {
+        "Flask_Limiter-3.5.0-py3-none-any.whl": "dbda4174f44e6cb858c6eb75e7488186f2977dd5d33d7028ba1aabf179de1bee",
+        "alembic-1.19.1-py3-none-any.whl": "b39018cb3d9413a19cbd54cf3c02ad33998641f0538eb77413a488a21c3e14be",
+        "bcrypt-4.1.2-cp39-abi3-manylinux_2_28_aarch64.whl": "f70d9c61f9c4ca7d57f3bfe88a5ccf62546ffbadf3681bb1e268d9d2e41c91a7",
+        "blinker-1.9.0-py3-none-any.whl": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+        "cachelib-0.16.1-py3-none-any.whl": "365ba096b1df85fe1e6df26716026c929076b218eb359c2b02c9a0674d26fe01",
+        "cbor2-6.1.4-cp312-cp312-manylinux_2_28_aarch64.whl": "d9ada5a6ccfbb8ea7a3aa2aeb028421b52d8e0cd9323f0a2aeaa9c09d25fbce2",
+        "cffi-2.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl": "68e62fe11f30d5ca8289242866f0a5291402d8529ca2178ab8afc5c9694ae890",
+        "click-8.4.2-py3-none-any.whl": "e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76",
+        "cryptography-50.0.1-cp311-abi3-manylinux_2_34_aarch64.whl": "e2ca8fd1b6b4b82a1c4cb02841d0837e3c12336c2e24b520ab8ab3b969733d8f",
+        "deprecated-1.3.1-py2.py3-none-any.whl": "597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f",
+        "flask-3.1.3-py3-none-any.whl": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+        "flask_session-0.8.0-py3-none-any.whl": "5dae6e9ddab334f8dc4dea4305af37851f4e7dc0f484caf3351184001195e3b7",
+        "flask_wtf-1.2.1-py3-none-any.whl": "fa6793f2fb7e812e0fe9743b282118e581fb1b6c45d414b8af05e659bd653287",
+        "greenlet-3.5.5-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl": "55272212cbc5f43d1d723725ab931f1939969b7e9523882ca58b55061769d053",
+        "gunicorn-26.2.0-py3-none-any.whl": "bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3",
+        "itsdangerous-2.2.0-py3-none-any.whl": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+        "jinja2-3.1.6-py3-none-any.whl": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+        "limits-5.8.0-py3-none-any.whl": "ae1b008a43eb43073c3c579398bd4eb4c795de60952532dc24720ab45e1ac6b8",
+        "mako-1.4.1-py3-none-any.whl": "a359d9a94a541213958742b2698d0a7757bb83551767bc468a74b9905aba9617",
+        "markdown_it_py-4.2.0-py3-none-any.whl": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a",
+        "markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "3a7e8ae81ae39e62a41ec302f972ba6ae23a5c5396c8e60113e9066ef893da0d",
+        "mdurl-0.1.2-py3-none-any.whl": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+        "msgspec-0.21.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "846758412e9518252b2ac9bffd6f0e54d9ff614f5f9488df7749f81ff5c80920",
+        "ordered_set-4.1.0-py3-none-any.whl": "046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562",
+        "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+        "pillow-12.3.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl": "d9c7f76c0673154f044e9d78c8655fb4213f6ca31a836df48b40fe5d187717b9",
+        "pyasn1-0.6.4-py3-none-any.whl": "deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b",
+        "pycparser-3.0-py3-none-any.whl": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+        "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+        "pyopenssl-26.4.0-py3-none-any.whl": "f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c",
+        "pypng-0.20220715.0-py3-none-any.whl": "4a43e969b8f5aaafb2a415536c1a8ec7e341cd6a3f957fd5b5f32a4cfeed902c",
+        "qrcode-7.4.2-py3-none-any.whl": "581dca7a029bcb2deef5d01068e39093e80ef00b4a61098a2182eac59d01643a",
+        "rich-13.9.4-py3-none-any.whl": "6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90",
+        "sqlalchemy-2.0.52-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "1b2d9e507a458832adcfbd8af6e2036ddf069b7710b799448542ebccae2dceee",
+        "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "webauthn-2.7.1-py3-none-any.whl": "d57e9613c65e0c6a4db7ee715fb49ebdf3c4a6eb3979729eeb497c99105e8181",
+        "werkzeug-3.1.8-py3-none-any.whl": "63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50",
+        "wrapt-2.3.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "392158c9a7f2ab1b8699418bfc0fe6f83548788c418b27d7bf2019ad3405cebb",
+        "wtforms-3.2.2-py3-none-any.whl": "72b90d5d921bd3119252069cf0301e9c13915f9e52792652bc91c5dda4b79e56"
+      }
+    }
+  }
+}
