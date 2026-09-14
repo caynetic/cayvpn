@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_egress_macros.html" import location_name %}
+{% block title %}Edit connection · CayVPN{% endblock %}
+{% block content %}
+<div class="wizard-shell">
+  <div class="section-heading wizard-heading">
+    <div><p class="eyebrow">{{ client.name }}</p><h1>Edit connection</h1><p class="muted">Choose how this device protects its internet connection.</p></div>
+    <a class="button" href="{{ url_for('index') }}">Back to devices</a>
+  </div>
+  {% if errors %}<div class="error-summary" id="error-summary" data-error-summary role="alert" tabindex="-1"><strong>Check this connection</strong><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+  <section class="card wizard-card">
+    <dl class="review-list">
+      <div><dt>App</dt><dd>{{ 'Amnezia' if client.ingress_protocol == 'amneziawg' else 'WireGuard' }}</dd></div>
+      <div><dt>Current Location</dt><dd>{{ location_name(profile) if profile else 'Choose a ready Location first' }}</dd></div>
+    </dl>
+    {% if binding and binding.state == 'pending' %}<div class="notice notice-warning"><strong>Connection checks are in progress</strong><p>Refresh this page after the checks finish to make another change.</p></div>{% endif %}
+    {% if client.confirmed_config_version < client.generated_config_version %}<div class="notice notice-info"><strong>Connection update available</strong><p>Import the current configuration on this device to finish updating its web protection.</p><a class="text-link" href="{{ url_for('client_ready', client_id=client.id) }}">Install connection update</a></div>{% endif %}
+    <form method="post" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="settings_revision" value="{{ client.updated_at.isoformat() }}">
+      <fieldset class="choice-grid">
+        <legend>Web protection</legend>
+        <label class="choice-card"><input type="radio" name="dns_mode" value="ad_blocking" {% if client.dns_mode == 'ad_blocking' %}checked{% endif %} {% if not ad_blocking_ready %}disabled{% endif %} required><span><strong>Block ads and trackers</strong><small>{{ 'Filter known ad and tracking addresses.' if ad_blocking_ready else 'Not available on this server yet.' }}</small></span></label>
+        <label class="choice-card"><input type="radio" name="dns_mode" value="standard" {% if client.dns_mode == 'standard' %}checked{% endif %} required><span><strong>Standard protection</strong><small>Use private web lookups without filtering.</small></span></label>
+      </fieldset>
+      <p class="muted small">After changing web protection, download and import the updated configuration in the VPN app.</p>
+      <fieldset class="choice-grid">
+        <legend>IPv6 protection</legend>
+        <label class="choice-card"><input type="radio" name="ipv6_policy" value="auto" {% if client.ipv6_policy == 'auto' %}checked{% endif %} required><span><strong>Smart IPv6</strong><small>Protect IPv6 when the Location supports it. Otherwise, block IPv6 while the rest of the connection stays available.</small></span></label>
+        <label class="choice-card"><input type="radio" name="ipv6_policy" value="required" {% if client.ipv6_policy == 'required' %}checked{% endif %} required><span><strong>Require IPv6</strong><small>Use only IPv6-ready Locations. If IPv6 becomes unavailable, block the whole VPN connection.</small></span></label>
+      </fieldset>
+      <p class="muted small">IPv6 protection applies on the server immediately. Saving a change briefly reconnects this device.</p>
+      <div class="wizard-actions"><a class="button" href="{{ url_for('index') }}">Cancel</a><button class="button button-primary" type="submit" {% if binding and binding.state == 'pending' %}disabled{% endif %}>Save changes</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

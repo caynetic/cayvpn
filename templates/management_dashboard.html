@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_egress_macros.html" import capability_summary, location_name, location_option, location_status_summary %}
+{% block title %}Overview · CayVPN{% endblock %}
+{% block content %}
+<section class="overview-intro">
+  <div class="overview-copy">
+    <h1>{{ 'Everything is ready' if node and node.install_state == 'verified' else 'CayVPN is getting ready' }}</h1>
+    <p class="muted">{% if node and node.install_state == 'verified' and clients %}Your devices are protected and using the Locations you chose.{% elif node and node.install_state == 'verified' %}Your server is ready. Add a device whenever you want to connect.{% else %}CayVPN is finishing the checks that keep your connection protected.{% endif %}</p>
+  </div>
+  <div class="hero-actions">
+    <a class="button button-primary" href="{{ url_for('clients') }}">Add device</a>
+    <a class="button" href="{{ url_for('egress') }}">Add Location</a>
+  </div>
+</section>
+
+<div class="metric-grid">
+  <div class="metric"><span>Devices</span><strong>{{ clients|length }}</strong><small>{{ 'Protected now' if clients else 'Ready when you are' }}</small></div>
+  <div class="metric"><span>Locations</span><strong>{{ profiles|length }}</strong><small>{{ profiles|selectattr('health_state','equalto','healthy')|list|length }} ready</small></div>
+  <div class="metric"><span>Server</span><strong class="status-{{ node.install_state if node else 'unknown' }}">{{ 'Ready' if node and node.install_state == 'verified' else 'Checking' }}</strong><small>{{ 'IPv6 handled automatically' if node and node.install_state == 'verified' else 'Finishing protected setup' }}</small></div>
+</div>
+
+<div class="two-column">
+  <section class="card">
+    <div class="card-heading"><div><p class="eyebrow">Your connections</p><h2>Devices</h2></div><a class="text-link" href="{{ url_for('clients') }}">Add device</a></div>
+    {% if clients %}
+      <div class="table-wrap">
+        <table class="client-table">
+          <thead><tr><th>Name</th><th>Protection</th><th>Location</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for client in clients %}
+              {% set binding = routes.get(client.id) %}
+              {% set active_profile = profile_map.get(binding.egress_profile_id) if binding and binding.egress_profile_id else none %}
+              {% set ipv6_protected = binding and binding.state == 'active' and active_profile and active_profile.capabilities.get('ipv6') and active_profile.ipv6_health_state in ['healthy', 'active'] %}
+              <tr>
+                <td data-label="Name">
+                  <div class="client-cell-content">
+                    <strong>{{ client.name }}</strong>
+                    <details class="technical-details table-details"><summary>Technical details</summary><p>{{ client.address }} · {{ client.ipv6_address }}</p></details>
+                    {% if client.confirmed_config_version < client.generated_config_version %}<small class="field-error">Connection update available</small>{% endif %}
+                  </div>
+                </td>
+                <td data-label="Protection"><div class="client-cell-content">{{ client.ingress_protocol|replace('amneziawg','Amnezia') }}<small>{{ 'IPv6 protected' if ipv6_protected else 'IPv6 blocked safely' }}</small><small>{{ 'Ad and tracker blocking' if client.dns_mode == 'ad_blocking' else 'Standard web protection' }}</small>{% if client.ipv6_policy == 'required' %}<small>Require IPv6 enabled</small>{% endif %}</div></td>
+                <td data-label="Location">
+                  <form method="post" action="{{ url_for('switch_route', client_id=client.id) }}" data-route-switch data-confirm="Switching Locations resets this device connection. Continue?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="profile_id" data-route-profile aria-label="Select a Location for {{ client.name }}">
+                      <option value="">Select a Location</option>
+                      {% for profile in profiles %}<option value="{{ profile.id }}" {% if binding and binding.egress_profile_id == profile.id %}selected{% endif %} {% if profile.health_state not in ['healthy', 'active'] or client.ipv6_policy == 'required' and not (profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active']) %}disabled{% endif %}>{{ location_option(profile) }}</option>{% endfor %}
+                    </select>
+                    {% if pools %}
+                      <select name="pool_id" data-route-pool aria-label="Select a backup group for {{ client.name }}">
+                        <option value="">Select a backup group</option>
+                        {% for pool in pools %}<option value="{{ pool.id }}" {% if binding and binding.pool_id == pool.id %}selected{% endif %}>{{ pool.name }} · automatic backup</option>{% endfor %}
+                      </select>
+                    {% endif %}
+                  </form>
+                  {% if not owner_approval_ready %}<small>CayVPN asks for owner confirmation before applying a Location change.</small>{% endif %}
+                </td>
+                <td class="actions" data-label="Actions">
+                  <a class="button button-small" href="{{ url_for('client_settings', client_id=client.id) }}">Edit connection</a>
+                  <a class="button button-small" href="{{ url_for('download_config', client_id=client.id) }}">Download</a>
+                  <a class="button button-small" href="{{ url_for('client_qr', client_id=client.id) }}">QR</a>
+                  <form method="post" action="{{ url_for('delete_client', client_id=client.id) }}" class="inline-form" data-confirm="Remove this device and revoke its server connection?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="button button-small button-danger" type="submit">Remove</button>
+                  </form>
+                  {% if client.confirmed_config_version < client.generated_config_version %}<a class="button button-small button-primary" href="{{ url_for('client_ready', client_id=client.id) }}">Install connection update</a>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty"><p>No devices have been added yet.</p><a class="button button-primary" href="{{ url_for('clients') }}">Add the first device</a></div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-heading"><div><p class="eyebrow">Where you connect</p><h2>Locations</h2></div><a class="text-link" href="{{ url_for('egress') }}">Manage</a></div>
+    {% for profile in profiles %}
+      <div class="list-row"><div><strong>{{ location_name(profile) }}</strong><small>{{ location_status_summary(profile) }}</small><details class="technical-details table-details"><summary>Technical details</summary><p>{{ profile.driver|replace('_',' ') }}{% if profile.observed_exit_ip %} · IP {{ profile.observed_exit_ip }}{% endif %}<br>{{ capability_summary(profile) }}</p></details></div><span class="health health-{{ profile.health_state }}">{{ 'ready' if profile.health_state in ['healthy', 'active'] else 'checking' if profile.health_state == 'pending' else 'attention' }}</span></div>
+    {% else %}
+      <div class="empty"><p>Add an address, proxy, or provider tunnel Location.</p></div>
+    {% endfor %}
+  </section>
+</div>
+
+{% if drafts %}
+  <section class="card resume-card">
+    <div class="card-heading"><div><p class="eyebrow">Saved for 24 hours</p><h2>Resume setup</h2></div></div>
+    {% for draft in drafts %}
+      {% set resume_step = wizard_resume_step(draft) %}
+      {% set draft_label = 'Device' if draft.kind == 'client' else 'Location' if draft.kind == 'exit' else 'Backup group' %}
+      <div class="list-row"><div><strong>{{ draft.data.get('name', 'Unnamed ' ~ draft_label|lower) }}</strong><small>{{ draft_label }} · step {{ resume_step }} of {{ wizard_total_steps(draft.kind) }}</small></div><a class="button button-small" href="{{ url_for('wizard_step', kind=draft.kind, draft_id=draft.id, step=resume_step) }}">Resume</a></div>
+    {% endfor %}
+  </section>
+{% endif %}
+
+{% if onboarding_prompt %}
+  <section class="card onboarding-card" aria-labelledby="welcome-title">
+    <div class="card-heading"><div><p class="eyebrow">Welcome to CayVPN</p><h2 id="welcome-title">Finish your setup</h2><p class="muted">You can leave and return at any time.</p></div></div>
+    <ol class="onboarding-checklist">
+      <li class="{{ 'complete' if onboarding_status.security else '' }}"><span>{{ 'Done' if onboarding_status.security else '1' }}</span><div><strong>Private access</strong><small>{% if onboarding_status.security %}You can safely manage CayVPN. Password sign-in and extra security are optional.{% else %}Turn on the CayVPN connection from your setup folder. Password sign-in and extra security are optional.{% endif %}</small></div><a class="button button-small" href="{{ url_for('security_page') }}">Security</a></li>
+      <li class="{{ 'complete' if onboarding_status.client else '' }}"><span>{{ 'Done' if onboarding_status.client else '2' }}</span><div><strong>Connect a device</strong><small>Create and import your first private connection.</small></div><a class="button button-small" href="{{ url_for('clients') }}">Add device</a></li>
+      <li class="{{ 'complete' if onboarding_status.exit else '' }}"><span>{{ 'Done' if onboarding_status.exit else '3' }}</span><div><strong>Add another Location</strong><small>Optional. This server already works as your first Location.</small></div><a class="button button-small" href="{{ url_for('egress') }}">Add Location</a></li>
+    </ol>
+    <form method="post" action="{{ url_for('start_onboarding') }}" class="onboarding-dismiss"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="overview"><button class="button" type="submit">Hide checklist</button></form>
+  </section>
+{% elif donation_prompt %}
+  <div class="modal-card" role="dialog" aria-labelledby="support-title"><div><p class="eyebrow">A note from Caynetic</p><h2 id="support-title">Help keep CayVPN independent</h2><p class="muted">CayVPN is free, self-hosted, and has no telemetry. If it saved you time, a one-time coffee helps us keep testing and maintaining it.</p></div><div class="modal-actions"><form method="post" action="{{ url_for('dismiss_support') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Not now</button></form><form method="post" action="{{ url_for('visit_support') }}" target="_blank" rel="noopener"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Buy me a coffee</button></form></div></div>
+{% endif %}
+{% endblock %}

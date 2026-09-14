@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Install {{ client.name }} · CayVPN{% endblock %}
+{% block content %}
+<div class="wizard-shell">
+  <div class="section-heading wizard-heading">
+    <div>
+      <p class="eyebrow">{{ 'Device ready' if connection_ready else 'Device saved safely' }}</p>
+      <h1>{{ 'Connect' if connection_ready else 'Finish setting up' }} {{ client.name }}</h1>
+      <p class="muted">{% if connection_ready %}Setup is complete. Follow one option below on the device.{% else %}You can install the connection now, but CayVPN will keep its internet traffic blocked until the Location is ready.{% endif %}</p>
+    </div>
+    <a class="button" href="{{ url_for('index') }}">Finish later</a>
+  </div>
+  <section class="card wizard-card">
+    {% if not connection_ready %}<div class="notice notice-warning" role="status"><strong>Connection waiting safely</strong><p>{{ connection_wait_reason }} CayVPN will not let this device use an unverified route.</p></div>{% endif %}
+    <h2>Install the current connection</h2>
+    <p class="muted">If this device already has a CayVPN connection, replace its imported configuration with this one. DNS changes need this import to take effect on the device.</p>
+    <div class="choice-grid install-options">
+      <div class="choice-card"><span><strong>Phone or tablet</strong><small>Open the {{ 'Amnezia' if client.ingress_protocol == 'amneziawg' else 'WireGuard' }} app, add a tunnel, then scan CayVPN's QR code.</small></span><a class="button button-primary" href="{{ url_for('client_qr', client_id=client.id) }}">Show QR code</a></div>
+      <div class="choice-card"><span><strong>Computer or router</strong><small>Download the configuration, import it into the matching VPN app, and activate the tunnel.</small></span><a class="button button-primary" href="{{ url_for('download_config', client_id=client.id) }}" download="{{ config_download_name }}">Download configuration</a></div>
+    </div>
+    {% if not owner_approval_ready %}<p class="muted small">CayVPN will ask you to confirm secure access before showing this private connection.</p>{% endif %}
+    <div class="notice notice-info">
+      <strong>{{ 'IPv6 protected' if ipv6_protected else 'IPv6 blocked safely' }}</strong>
+      <p>{% if ipv6_protected %}All supported internet traffic uses {{ location_label }}.{% elif client.ipv6_policy == 'required' %}This device waits until a Location with working IPv6 is available.{% else %}The device can keep using {{ location_label }} while unavailable IPv6 is blocked safely.{% endif %}</p>
+    </div>
+    <div class="notice notice-info"><strong>CayVPN settings access</strong><p>This connection can open the private CayVPN settings page after optional sign-in is enabled.</p></div>
+    <form method="post" action="{{ url_for('confirm_client_config', client_id=client.id) }}" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="config_version" value="{{ client.generated_config_version }}">
+      <label class="checkbox"><input type="checkbox" name="installed" required><span>I imported this configuration into the VPN app on {{ client.name }}.</span></label>
+      <div class="wizard-actions"><a class="button" href="{{ url_for('index') }}">Finish later</a><button class="button button-primary" type="submit">Mark imported</button></div>
+    </form>
+    <details class="technical-details"><summary>Technical details</summary><p>The configuration uses {{ client.address }}/32 and {{ client.ipv6_address }}/128 with full-tunnel routes for <code>0.0.0.0/0</code> and <code>::/0</code>. The public server endpoint remains IPv4 in this release.</p></details>
+  </section>
+</div>
+{% endblock %}

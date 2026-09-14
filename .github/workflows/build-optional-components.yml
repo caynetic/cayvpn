@@ -1,0 +1,197 @@
+name: Build optional component bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.architecture }} components
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+            go_archive: go1.27.0.linux-amd64.tar.gz
+            go_sha256: 675c26c449cbb18fc24b74650de1eabbae6e16f64326fd85a283fb3b58280685
+            hev_asset: hev-socks5-tunnel-linux-x86_64
+            hev_sha256: a98763f18b0ad1f72a903221008488275f2bf60be00028886f9fa41622df6a03
+            elf_machine: Advanced Micro Devices X86-64
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            go_archive: go1.27.0.linux-arm64.tar.gz
+            go_sha256: 51798d2c42d0e1c6ed7fd9f48728b4193abac9e8aad6dbac2fe96a81f5909bda
+            hev_asset: hev-socks5-tunnel-linux-arm64
+            hev_sha256: 958206dcebcdc390cdc4d5b88c8504ec81483e2a04b46d37c835a179830c86ba
+            elf_machine: AArch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - name: Build and verify pinned components
+        shell: bash
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          GO_ARCHIVE: ${{ matrix.go_archive }}
+          GO_SHA256: ${{ matrix.go_sha256 }}
+          HEV_ASSET: ${{ matrix.hev_asset }}
+          HEV_SHA256: ${{ matrix.hev_sha256 }}
+          ELF_MACHINE: ${{ matrix.elf_machine }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "${work}"' EXIT
+          output="${GITHUB_WORKSPACE}/component-artifact"
+          install -d -m 0755 "${output}/${ARCHITECTURE}"
+
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential ca-certificates curl git binutils
+
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://go.dev/dl/${GO_ARCHIVE}" -o "${work}/go.tar.gz"
+          printf '%s  %s\n' "${GO_SHA256}" "${work}/go.tar.gz" | sha256sum --check --strict
+          tar -C "${work}" -xzf "${work}/go.tar.gz"
+
+          git clone --quiet https://github.com/amnezia-vpn/amneziawg-go.git "${work}/amneziawg-go"
+          git -C "${work}/amneziawg-go" checkout --quiet --detach 1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1
+          test "$(git -C "${work}/amneziawg-go" rev-parse HEAD)" = 1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1
+          (
+            cd "${work}/amneziawg-go"
+            GOTOOLCHAIN=local "${work}/go/bin/go" mod download
+            GOTOOLCHAIN=local "${work}/go/bin/go" mod verify
+            CGO_ENABLED=0 GOTOOLCHAIN=local "${work}/go/bin/go" build -trimpath -ldflags '-s -w' -o "${output}/${ARCHITECTURE}/amneziawg-go" .
+          )
+
+          git clone --quiet https://github.com/amnezia-vpn/amneziawg-tools.git "${work}/amneziawg-tools"
+          git -C "${work}/amneziawg-tools" checkout --quiet --detach ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
+          test "$(git -C "${work}/amneziawg-tools" rev-parse HEAD)" = ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
+          make -C "${work}/amneziawg-tools/src" clean all
+          install -m 0755 "${work}/amneziawg-tools/src/wg" "${output}/${ARCHITECTURE}/awg"
+          install -m 0755 "${work}/amneziawg-tools/src/wg-quick/linux.bash" "${output}/${ARCHITECTURE}/awg-quick"
+
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://github.com/heiher/hev-socks5-tunnel/releases/download/2.17.1/${HEV_ASSET}" \
+            -o "${output}/${ARCHITECTURE}/hev-socks5-tunnel"
+          printf '%s  %s\n' "${HEV_SHA256}" "${output}/${ARCHITECTURE}/hev-socks5-tunnel" | sha256sum --check --strict
+          chmod 0755 "${output}/${ARCHITECTURE}/hev-socks5-tunnel"
+
+          git clone --quiet https://github.com/go-acme/lego.git "${work}/lego"
+          git -C "${work}/lego" checkout --quiet --detach 589c84af4f26629fbdaa7fbca712f806632ccb7e
+          test "$(git -C "${work}/lego" rev-parse HEAD)" = 589c84af4f26629fbdaa7fbca712f806632ccb7e
+          (
+            cd "${work}/lego"
+            GOTOOLCHAIN=local "${work}/go/bin/go" mod download
+            GOTOOLCHAIN=local "${work}/go/bin/go" mod verify
+            # lego v5's command lives at the repository root. Keep this target
+            # aligned with the exact pinned tag; the former nested target does not exist.
+            CGO_ENABLED=0 GOTOOLCHAIN=local "${work}/go/bin/go" build -trimpath -ldflags '-s -w' -o "${output}/${ARCHITECTURE}/lego" .
+          )
+
+          "${output}/${ARCHITECTURE}/awg" --version
+          "${output}/${ARCHITECTURE}/amneziawg-go" --version
+          "${output}/${ARCHITECTURE}/lego" --version
+          bash -n "${output}/${ARCHITECTURE}/awg-quick"
+          for binary in awg amneziawg-go hev-socks5-tunnel lego; do
+            readelf -h "${output}/${ARCHITECTURE}/${binary}" | grep -F "Machine:" | grep -F "${ELF_MACHINE}"
+          done
+
+          if [[ "${ARCHITECTURE}" == "amd64" ]]; then
+            install -d -m 0755 "${output}/licenses" "${output}/source"
+            install -m 0644 "${work}/amneziawg-go/LICENSE" "${output}/licenses/amneziawg-go-LICENSE"
+            install -m 0644 "${work}/amneziawg-tools/COPYING" "${output}/licenses/amneziawg-tools-COPYING"
+            install -m 0644 "${work}/lego/LICENSE" "${output}/licenses/lego-LICENSE"
+            git clone --quiet https://github.com/heiher/hev-socks5-tunnel.git "${work}/hev-socks5-tunnel"
+            git -C "${work}/hev-socks5-tunnel" checkout --quiet --detach 9a06bc6e7989da54e3d32ff701ef7a7ce4995d3a
+            test "$(git -C "${work}/hev-socks5-tunnel" rev-parse HEAD)" = 9a06bc6e7989da54e3d32ff701ef7a7ce4995d3a
+            install -m 0644 "${work}/hev-socks5-tunnel/LICENSE" "${output}/licenses/hev-socks5-tunnel-LICENSE"
+            git -C "${work}/amneziawg-tools" archive --format=tar.gz --prefix=amneziawg-tools-v3.1.20260812/ HEAD > "${output}/source/amneziawg-tools-source.tar.gz"
+            cat > "${output}/BUILD-METADATA.json" <<'JSON'
+          {
+            "schema_version": 1,
+            "amneziawg_go": {
+              "version": "v3.1.20260814",
+              "source": "https://github.com/amnezia-vpn/amneziawg-go",
+              "commit": "1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1"
+            },
+            "amneziawg_tools": {
+              "version": "v3.1.20260812",
+              "source": "https://github.com/amnezia-vpn/amneziawg-tools",
+              "commit": "ee0f0a9aa34ff0a0da4b3433b9512781cfe02843"
+            },
+            "hev_socks5_tunnel": {
+              "version": "2.17.1",
+              "source": "https://github.com/heiher/hev-socks5-tunnel",
+              "commit": "9a06bc6e7989da54e3d32ff701ef7a7ce4995d3a"
+            },
+            "lego": {
+              "version": "v5.3.1",
+              "source": "https://github.com/go-acme/lego",
+              "commit": "589c84af4f26629fbdaa7fbca712f806632ccb7e"
+            }
+          }
+          JSON
+            cat > "${output}/THIRD_PARTY_NOTICES.md" <<'EOF'
+          # CayVPN optional component notices
+
+          CayVPN bundles optional, separately licensed executables so a VPS never has to download or build networking code after installation.
+
+          - AmneziaWG Go is MIT licensed. See `licenses/amneziawg-go-LICENSE`.
+          - AmneziaWG tools are GPL-2.0 licensed. See `licenses/amneziawg-tools-COPYING`; the exact corresponding source is included at `source/amneziawg-tools-source.tar.gz`.
+          - hev-socks5-tunnel is MIT licensed. See `licenses/hev-socks5-tunnel-LICENSE`.
+          - lego is MIT licensed. See `licenses/lego-LICENSE`; CayVPN uses it only for owner-approved, short-lived HTTPS certificates.
+
+          Exact versions, source repositories, and commits are recorded in `BUILD-METADATA.json`.
+          EOF
+          fi
+
+      - name: Upload native component artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cayvpn-components-${{ matrix.architecture }}
+          path: component-artifact
+          if-no-files-found: error
+          retention-days: 7
+
+  bundle:
+    name: Assemble verified component bundle
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download native component artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: cayvpn-components-*
+          path: cayvpn-component-bundle
+          merge-multiple: true
+
+      - name: Verify inventory and create checksums
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd cayvpn-component-bundle
+          expected="$(mktemp)"
+          observed="$(mktemp)"
+          trap 'rm -f -- "${expected}" "${observed}"' EXIT
+          printf '%s\n' \
+            BUILD-METADATA.json THIRD_PARTY_NOTICES.md \
+            licenses/amneziawg-go-LICENSE licenses/amneziawg-tools-COPYING licenses/hev-socks5-tunnel-LICENSE licenses/lego-LICENSE \
+            source/amneziawg-tools-source.tar.gz \
+            amd64/awg amd64/awg-quick amd64/amneziawg-go amd64/hev-socks5-tunnel amd64/lego \
+            arm64/awg arm64/awg-quick arm64/amneziawg-go arm64/hev-socks5-tunnel arm64/lego \
+            | LC_ALL=C sort > "${expected}"
+          find . -type f -print | sed 's#^./##' | LC_ALL=C sort > "${observed}"
+          cmp -s "${expected}" "${observed}"
+          while IFS= read -r file; do sha256sum "${file}"; done < "${expected}" > SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+
+      - name: Upload release-ready component bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cayvpn-component-bundle
+          path: cayvpn-component-bundle
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_egress_macros.html" import capability_summary, location_name, location_status_summary %}
+{% block title %}Locations · CayVPN{% endblock %}
+{% block content %}
+<div class="section-heading">
+  <div>
+    <p class="eyebrow">Where you connect</p>
+    <h1>Locations</h1>
+    <p class="muted">Locations (exits) are places your internet connection can appear from. This server already works as your first Location.</p>
+  </div>
+  <a class="button" href="{{ url_for('index') }}">Overview</a>
+</div>
+
+<div class="two-column exit-layout">
+  <section class="card exit-list-card">
+    <div class="card-heading">
+      <div><p class="eyebrow">Ready to use</p><h2>Your Locations</h2></div>
+      <form method="post" action="{{ url_for('start_wizard', kind='exit') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Add Location</button></form>
+    </div>
+    {% for profile in profiles %}
+      <div class="list-row exit-row">
+        <div>
+          <strong>{{ location_name(profile) }}</strong>
+          <small>{{ location_status_summary(profile) }}</small>
+          <details class="technical-details table-details"><summary>Technical details</summary><p>{% if profile.driver == 'provider_tunnel' and profile.config.get('protocol') == 'amneziawg' %}AmneziaWG provider tunnel{% elif profile.driver == 'provider_tunnel' and profile.config.get('protocol') == 'wireguard' %}WireGuard provider tunnel{% else %}{{ profile.driver|replace('_',' ') }}{% endif %}{% if profile.observed_exit_ip %} · IPv4 {{ profile.observed_exit_ip }}{% endif %}{% if profile.observed_exit_ipv6 %} · IPv6 {{ profile.observed_exit_ipv6 }}{% endif %}<br>{{ capability_summary(profile) }}{% if profile.last_failure_reason %}<br>{{ profile.last_failure_reason|replace('_', ' ') }}{% endif %}</p></details>
+        </div>
+        <div class="actions">
+          <span class="health health-{{ profile.health_state }}">{{ 'ready' if profile.health_state in ['healthy', 'active'] else 'checking' if profile.health_state == 'pending' else 'attention' }}</span>
+          {% if profile.driver != 'direct_ip' %}
+            <form method="post" action="{{ url_for('activate_egress', profile_id=profile.id) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button button-small" type="submit">Check again</button>
+            </form>
+            <form method="post" action="{{ url_for('delete_egress', profile_id=profile.id) }}" class="inline-form" data-confirm="Delete this Location? Devices must be moved off it first.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button button-small button-danger" type="submit">Delete</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty"><p>No Locations have been configured.</p></div>
+    {% endfor %}
+  </section>
+
+  <section class="card failover-card">
+    <div class="card-heading">
+      <div><p class="eyebrow">Automatic backup</p><h2>Backup groups</h2></div>
+      {% if can_create_pool %}<form method="post" action="{{ url_for('start_wizard', kind='pool') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Create group</button></form>{% else %}<button class="button" type="button" disabled>Create group</button>{% endif %}
+    </div>
+    {% if not can_create_pool %}<div class="setup-callout"><strong>Add one more Location first</strong><p>A backup group needs a first Location and at least one backup.</p></div>{% endif %}
+    {% for pool, selected_ids in pools %}
+      <div class="list-row">
+        <div>
+          <strong>{{ pool.name }}</strong>
+          <small>{% for profile in profiles if profile.id in selected_ids %}{{ location_name(profile) }}{% if not loop.last %} → {% endif %}{% endfor %}</small>
+        </div>
+        <div class="actions">
+          <span class="health health-healthy">backups ready</span>
+          <form method="post" action="{{ url_for('delete_pool', pool_id=pool.id) }}" class="inline-form" data-confirm="Delete this backup group?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button button-small button-danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty"><p>No backup group has been created. Locations that are not ready remain blocked.</p></div>
+    {% endfor %}
+  </section>
+
+  {% if drafts %}
+    <section class="card exit-builder saved-setup-card">
+      <div class="card-heading"><div><p class="eyebrow">Saved for 24 hours</p><h2>Resume setup</h2></div></div>
+      {% for draft in drafts %}
+        {% set resume_step = wizard_resume_step(draft) %}
+        {% set draft_label = 'Location' if draft.kind == 'exit' else 'Backup group' %}
+        <div class="list-row"><div><strong>{{ draft.data.get('name', 'Unnamed ' ~ draft_label|lower) }}</strong><small>{{ draft_label }} · Step {{ resume_step }} of {{ wizard_total_steps(draft.kind) }}</small></div><a class="button button-small" href="{{ url_for('wizard_step', kind=draft.kind, draft_id=draft.id, step=resume_step) }}">Resume</a></div>
+      {% endfor %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

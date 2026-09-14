@@ -1,20 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}QR Code{% endblock %}
-
+{% block title %}{{ name }} QR · CayVPN{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-header">
-        <h2 class="mb-0">QR Code for {{ name }}</h2>
-      </div>
-      <div class="card-body text-center">
-        <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code" class="img-fluid">
-        <br><br>
-        <a href="/" class="btn btn-primary">Back</a>
-      </div>
-    </div>
-  </div>
-</div>
+<section class="card qr-card"><p class="eyebrow">Client configuration</p><h1>{{ name }}</h1><p class="muted">Scan this QR code in WireGuard or AmneziaVPN. Treat it like a password.</p><img class="qr-image" src="data:image/png;base64,{{ qr_b64 }}" alt="VPN configuration QR code for {{ name }}"><div><a class="button" href="{{ url_for('index') }}">Back to overview</a></div></section>
 {% endblock %}

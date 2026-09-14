@@ -3,77 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}WireGuard Manager{% endblock %}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+  <meta name="theme-color" content="#f6f7f5">
+  <title>{% block title %}CayVPN{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='logo.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="bg-light">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-    <div class="container-fluid">
-      <a class="navbar-brand d-flex align-items-center" href="https://vpn.caynetic.com">
-        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="me-2" style="height: 40px; width: auto;">
-        <span class="fw-bold">CayVPN</span>
-      </a>
+{% set current_path = request.path %}
+{% set devices_active = current_path in ['/clients', '/add'] or current_path.startswith('/setup/client') or current_path.startswith('/client/') or current_path.startswith('/config/') or current_path.startswith('/qr/') %}
+{% set exits_active = current_path.startswith('/egress') or current_path.startswith('/setup/exit') or current_path.startswith('/setup/pool') %}
+{% set security_active = current_path.startswith('/security') or current_path.startswith('/owner-login') %}
+{% set system_active = current_path.startswith('/settings') or current_path.startswith('/server') or current_path.startswith('/capacity') or current_path.startswith('/dns') %}
+<body class="{{ 'app-body' if session.get('authenticated') else 'auth-body' }}">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  {% if session.get('authenticated') %}
+    <div class="app-frame">
+      <aside class="sidebar" aria-label="CayVPN navigation">
+        <a class="brand" href="{{ url_for('index') }}">
+          <span class="brand-mark"><img src="{{ url_for('static', filename='logo.svg') }}" alt=""></span>
+          <span class="brand-copy"><strong>CayVPN</strong><small>Private by design</small></span>
+        </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+        <p class="nav-label">Your VPN</p>
+        <nav class="navlinks" aria-label="Main navigation">
+          <a class="{{ 'active' if current_path == '/' else '' }}" href="{{ url_for('index') }}" {% if current_path == '/' %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg></span><span>Overview</span>
+          </a>
+          <a class="{{ 'active' if devices_active else '' }}" href="{{ url_for('clients') }}" {% if devices_active %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 17h6"/></svg></span><span>Devices</span>
+          </a>
+          <a class="{{ 'active' if exits_active else '' }}" href="{{ url_for('egress') }}" {% if exits_active %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5M5 5v14"/></svg></span><span>Locations</span>
+          </a>
+          <a class="{{ 'active' if security_active else '' }}" href="{{ url_for('security_page') }}" {% if security_active %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.8 2.8 8.2 7 10 4.2-1.8 7-5.2 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span>Security</span>
+          </a>
+          <a class="{{ 'active' if system_active else '' }}" href="{{ url_for('settings_page') }}" {% if system_active %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg></span><span>System</span>
+          </a>
+        </nav>
 
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav me-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="/"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/add"><i class="fas fa-plus me-1"></i>Add Peer</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/server"><i class="fas fa-server me-1"></i>Server</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a>
-          </li>
-        </ul>
+        <div class="sidebar-foot">
+          <a class="server-summary" href="{{ url_for('server') }}">
+            <span class="status-dot {{ 'healthy' if node and node.install_state == 'verified' else 'pending' }}" aria-hidden="true"></span>
+            <span><strong>Your server</strong><small>{{ 'Ready' if node and node.install_state == 'verified' else ((node.install_state|replace('_', ' ')|title) if node else 'Checking status') }} · protected</small></span>
+          </a>
+          <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="link-button" type="submit"><span aria-hidden="true">↗</span> Log out</button>
+          </form>
+        </div>
+      </aside>
 
-        <ul class="navbar-nav">
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-external-link-alt me-1"></i>Services
-            </a>
-            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <li>
-                <a class="dropdown-item" href="{% if adguard_https_enabled %}https://{{ server_ip }}:{{ adguard_https_port }}{% else %}http://{{ server_ip }}:{{ adguard_http_port }}{% endif %}" target="_blank">
-                  <i class="fas fa-shield-alt me-2"></i>AdGuard Home
-                </a>
-              </li>
-              <li><a class="dropdown-item" href="/test_dns"><i class="fas fa-dna me-2"></i>Test DNS</a></li>
-            </ul>
-          </li>
-          <li class="nav-item">
-            <form method="POST" action="/logout" class="d-inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <button type="submit" class="nav-link btn btn-link border-0 p-0">
-                <i class="fas fa-sign-out-alt me-1"></i>Logout
-              </button>
-            </form>
-          </li>
-          <li class="nav-item">
-            <span class="nav-link text-white-50" style="cursor: default;">v{{ version }}</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </nav>
+      <div class="workspace">
+        <header class="workspace-topbar">
+          <a class="mobile-brand" href="{{ url_for('index') }}"><span class="mobile-brand-mark">C</span><strong>CayVPN</strong></a>
+          <span class="workspace-label">Your private VPN</span>
+          <div class="owner-status">
+            <span class="owner-status-pill"><i class="status-dot {{ 'healthy' if trusted_owner_tunnel or owner_approval_ready else 'pending' }}"></i>{% if trusted_owner_tunnel %}Connected safely{% elif owner_approval_ready %}Ready to manage{% else %}Private access{% endif %}</span>
+          </div>
+        </header>
+  {% else %}
+    <header class="public-topbar">
+      <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark"><img src="{{ url_for('static', filename='logo.svg') }}" alt=""></span><span class="brand-copy"><strong>CayVPN</strong><small>Private by design</small></span></a>
+    </header>
+  {% endif %}
 
-  <main class="container-fluid py-4">
-    <div class="row justify-content-center">
-      <div class="col-12 col-lg-10 col-xl-9">
-        {% block content %}{% endblock %}
-      </div>
-    </div>
+  <main id="main-content" tabindex="-1" class="page-shell {{ 'auth-shell' if not session.get('authenticated') else '' }}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" aria-live="polite">
+          {% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  {% if session.get('authenticated') %}
+        <footer class="footer"><span>CayVPN {{ version }}</span><a href="https://www.buymeacoffee.com/caynetic" rel="noopener" target="_blank">Support CayVPN</a></footer>
+      </div>
+
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        <a class="{{ 'active' if current_path == '/' else '' }}" href="{{ url_for('index') }}" {% if current_path == '/' %}aria-current="page"{% endif %}><span class="mobile-nav-mark"></span>Home</a>
+        <a class="{{ 'active' if devices_active else '' }}" href="{{ url_for('clients') }}" {% if devices_active %}aria-current="page"{% endif %}><span class="mobile-nav-mark"></span>Devices</a>
+        <a class="{{ 'active' if exits_active else '' }}" href="{{ url_for('egress') }}" {% if exits_active %}aria-current="page"{% endif %}><span class="mobile-nav-mark"></span>Locations</a>
+        <a class="{{ 'active' if security_active else '' }}" href="{{ url_for('security_page') }}" {% if security_active %}aria-current="page"{% endif %}><span class="mobile-nav-mark"></span>Security</a>
+        <a class="{{ 'active' if system_active else '' }}" href="{{ url_for('settings_page') }}" {% if system_active %}aria-current="page"{% endif %}><span class="mobile-nav-mark"></span>System</a>
+      </nav>
+    </div>
+  {% else %}
+    <footer class="footer public-footer"><span>CayVPN {{ version }}</span><a href="https://www.buymeacoffee.com/caynetic" rel="noopener" target="_blank">Support CayVPN</a></footer>
+  {% endif %}
 </body>
 </html>

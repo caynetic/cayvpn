@@ -1,130 +1,32 @@
 {% extends "base.html" %}
-
-{% block title %}{% if first_time %}Initial Setup{% else %}Login{% endif %} - WireGuard Manager{% endblock %}
-
+{% block title %}CayVPN access{% endblock %}
 {% block content %}
-<div class="row justify-content-center align-items-center min-vh-100">
-  <div class="col-12 col-md-8 col-lg-6 col-xl-4">
-    <div class="text-center mb-4">
-      <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caynetic VPN Logo" class="mb-3" style="height: 80px; width: auto;">
-      <h2 class="fw-bold text-primary">CayVPN</h2>
-      <p class="text-muted">WireGuard Management Interface</p>
-    </div>
-
-    <div class="card shadow-lg border-0">
-      <div class="card-header bg-primary text-white text-center">
-        <h5 class="mb-0">
-          <i class="fas fa-{{ 'user-plus' if first_time else 'sign-in-alt' }} me-2"></i>
-          {% if first_time %}Initial Setup{% else %}Login{% endif %}
-        </h5>
-      </div>
-      <div class="card-body p-4">
-        {% if first_time %}
-        <div class="alert alert-info border-0">
-          <i class="fas fa-info-circle me-2"></i>
-          <strong>Welcome!</strong> This appears to be your first time setting up CayVPN. Please set an initial admin password.
-        </div>
-        {% endif %}
-
-        {% if error %}
-        <div class="alert alert-danger border-0">
-          <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
-        </div>
-        {% endif %}
-
-        <form method="post" autocomplete="on">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-          <div class="mb-3">
-            <label for="username" class="form-label fw-bold">
-              <i class="fas fa-user me-2 text-primary"></i>Username
-            </label>
-            <input type="text" class="form-control form-control-lg" id="username" name="username" value="admin" readonly
-                   autocomplete="username"
-                   style="border-radius: 10px; background-color: #f8f9fa;">
-            <div class="form-text text-muted">
-              <i class="fas fa-lock me-1"></i>Admin access only
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label for="password" class="form-label fw-bold">
-              <i class="fas fa-key me-2 text-primary"></i>
-              {% if first_time %}Set Initial Password{% else %}Password{% endif %}
-            </label>
-            <div class="input-group">
-              <input type="password" class="form-control form-control-lg" id="password" name="password" required
-                     minlength="8" autocomplete="{% if first_time %}new-password{% else %}current-password{% endif %}"
-                     style="border-radius: 10px 0 0 10px;">
-              <button class="btn btn-secondary" type="button" id="togglePassword"
-                      style="border-radius: 0 10px 10px 0; min-width: 80px; font-weight: 600;">
-                Show
-              </button>
-            </div>
-            <div class="form-text text-muted">
-              <i class="fas fa-shield-alt me-1"></i>Minimum 8 characters required
-            </div>
-          </div>
-
-          {% if first_time %}
-          <div class="mb-4">
-            <label for="confirm_password" class="form-label fw-bold">
-              <i class="fas fa-key me-2 text-primary"></i>Confirm Password
-            </label>
-            <div class="input-group">
-              <input type="password" class="form-control form-control-lg" id="confirm_password" name="confirm_password"
-                     required minlength="8" autocomplete="new-password"
-                     style="border-radius: 10px 0 0 10px;">
-              <button class="btn btn-secondary" type="button" id="toggleConfirmPassword"
-                      style="border-radius: 0 10px 10px 0; min-width: 80px; font-weight: 600;">
-                Show
-              </button>
-            </div>
-            <div class="form-text text-muted">
-              <i class="fas fa-check-circle me-1"></i>Re-enter your password to confirm
-            </div>
-          </div>
-          {% endif %}
-
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary btn-lg">
-              <i class="fas fa-{{ 'user-plus' if first_time else 'sign-in-alt' }} me-2"></i>
-              {% if first_time %}Set Password & Login{% else %}Login{% endif %}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="text-center mt-3">
-      <small class="text-muted">Version {{ version|default('1.0.0') }}</small>
-    </div>
-  </div>
-</div>
-
-<script>
-// Password visibility toggle
-document.getElementById('togglePassword').addEventListener('click', function() {
-  const password = document.getElementById('password');
-  if (password.type === 'password') {
-    password.type = 'text';
-    this.textContent = 'Hide';
-  } else {
-    password.type = 'password';
-    this.textContent = 'Show';
-  }
-});
-
-{% if first_time %}
-document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
-  const confirmPassword = document.getElementById('confirm_password');
-  if (confirmPassword.type === 'password') {
-    confirmPassword.type = 'text';
-    this.textContent = 'Hide';
-  } else {
-    confirmPassword.type = 'password';
-    this.textContent = 'Show';
-  }
-});
-{% endif %}
-</script>
+<section class="auth-card">
+  <img src="{{ url_for('static', filename='logo.svg') }}" alt="CayVPN" class="auth-logo">
+  {% if login_ready %}
+    <h1>Optional sign-in</h1>
+    <p class="muted">Enter your owner password{% if totp_required %} and the current six-digit code from your authenticator app{% endif %}.</p>
+    {% if remote_source %}
+      <p class="muted small">You are using secure remote access. Sensitive changes require one more confirmation with your password{% if totp_required %} and a fresh authenticator code{% endif %}.</p>
+    {% else %}
+      <p class="muted small">For reliable access from an ordinary CayVPN connection, bookmark <code>{{ admin_private_origin }}</code>.</p>
+    {% endif %}
+    {% if error %}<div class="error-summary" id="error-summary" data-error-summary role="alert" tabindex="-1"><strong>Sign-in failed</strong><p>{{ error }}</p></div>{% endif %}
+    <form method="post" class="stack-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <label>Owner password<input type="password" name="password" autocomplete="current-password" maxlength="256" required autofocus {% if error %}aria-invalid="true" aria-describedby="error-summary"{% endif %}></label>
+      {% if totp_required %}<label>Six-digit code<input type="text" name="totp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required {% if error %}aria-invalid="true" aria-describedby="error-summary"{% endif %}></label>{% endif %}
+      <button class="button button-primary" type="submit">Sign in</button>
+    </form>
+  {% elif first_time %}
+    <h1>Optional sign-in is not set up</h1>
+    <p class="muted">Secure access already lets you manage CayVPN without a password or authenticator. To add another sign-in option, turn on your CayVPN settings connection, open Security, and choose <strong>Set up optional sign-in</strong>.</p>
+  {% else %}
+    <h1>Turn on secure access</h1>
+    <p class="muted">Open the CayVPN connection from your setup folder, turn it on, then return to <code>{{ admin_origin }}</code>.</p>
+    <p class="muted small">Turn off any other active VPN first so it does not send CayVPN settings through the wrong connection.</p>
+    <details class="technical-details"><summary>Technical details</summary><p>The setup folder is the owner kit created during installation. Its registered admin WireGuard tunnel opens the private settings page. SSH recovery remains available from the included guide.</p></details>
+  {% endif %}
+</section>
 {% endblock %}

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% from "_egress_macros.html" import capability_summary, location_ipv6_badge, location_name, location_option, location_status_summary %}
+{% set titles = {'client': 'Add a device', 'exit': 'Add a Location', 'pool': 'Create a backup group'} %}
+{% block title %}{{ titles[kind] }} · CayVPN{% endblock %}
+{% block content %}
+<div class="wizard-shell">
+  <div class="section-heading wizard-heading">
+    <div>
+      <p class="eyebrow">Guided setup</p>
+      <h1>{{ titles[kind] }}</h1>
+      <p class="muted">Step {{ step }} of {{ total_steps }} · You can leave and come back for 24 hours.</p>
+    </div>
+    <form method="post" action="{{ url_for('cancel_wizard', kind=kind, draft_id=draft.id) }}" data-confirm="Cancel this setup and remove its saved answers and temporary configuration?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button" type="submit">Cancel setup</button>
+    </form>
+  </div>
+
+  <progress class="wizard-progress" value="{{ step }}" max="{{ total_steps }}" aria-label="Step {{ step }} of {{ total_steps }}">{{ step }} of {{ total_steps }}</progress>
+
+  {% if errors %}
+    <div class="error-summary" id="error-summary" data-error-summary role="alert" tabindex="-1">
+      <strong>Check this step</strong>
+      <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <section class="card wizard-card" {% if errors %}aria-describedby="error-summary"{% endif %}>
+    {% if kind == 'client' %}
+      {% if step == 1 %}
+        <h2>What are you connecting?</h2>
+        <p class="muted">Give it a name you will recognize, then choose its app.</p>
+        <form method="post" class="stack-form" data-device-step-one-history>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Device name<input name="name" value="{{ data.get('name', '') }}" placeholder="My iPhone" required maxlength="120" autofocus></label>
+          <fieldset class="choice-grid">
+            <legend>Which app will it use?</legend>
+            <label class="choice-card"><input type="radio" name="ingress_protocol" value="wireguard" {% if data.get('ingress_protocol', 'wireguard') == 'wireguard' %}checked{% endif %}><span><strong>Standard WireGuard</strong><small>Recommended. Fast and supported by most devices.</small></span></label>
+            <label class="choice-card"><input type="radio" name="ingress_protocol" value="amneziawg" {% if data.get('ingress_protocol') == 'amneziawg' %}checked{% endif %} {% if not amnezia_ready %}disabled{% endif %}><span><strong>Amnezia</strong><small>{% if amnezia_ready %}Useful on restrictive networks. Requires the Amnezia app.{% else %}Not installed on this CayVPN server yet.{% endif %}</small></span></label>
+          </fieldset>
+          <details class="technical-details"><summary>Technical details</summary><p>Each device receives its own key and private IPv4 and IPv6 addresses. Amnezia uses the server's optional AmneziaWG connection.</p></details>
+          <div class="wizard-actions"><a class="button" href="{{ url_for('clients') }}">Back</a><button class="button button-primary" type="submit">Continue</button></div>
+        </form>
+      {% elif step == 2 %}
+        <h2>Where should it connect?</h2>
+        <p class="muted">Choose the Location this device will appear to use online. CayVPN handles IPv6 automatically.</p>
+        <form method="post" class="stack-form" data-location-picker>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <fieldset class="choice-list">
+            <legend>Location</legend>
+            {% for profile in profiles if profile.driver == 'direct_ip' %}
+              {% set location_ready = profile.health_state in ['healthy', 'active'] %}
+              {% set ipv6_ready = profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] %}
+              <label class="choice-card"><input type="radio" name="route_choice" value="direct" data-ipv6-ready="{{ 'true' if ipv6_ready else 'false' }}" {% if location_ready and data.get('route_choice', 'direct') == 'direct' %}checked{% endif %} {% if not location_ready %}disabled{% endif %}><span><strong>This server</strong><small>{% if location_ready %}Use the internet Location included with your server.{% else %}Still checking the internet connection. Try again shortly or choose another ready Location.{% endif %}</small>{{ location_ipv6_badge(profile) }}</span></label>
+            {% endfor %}
+            <label class="choice-card"><input type="radio" name="route_choice" value="exit" {% if data.get('route_choice') == 'exit' and ready_additional_profiles %}checked{% endif %} {% if not ready_additional_profiles %}disabled{% endif %}><span><strong>Another Location</strong><small>{% if ready_additional_profiles %}Use a Location you already added.{% elif additional_profiles %}Your saved Locations are still being checked.{% else %}Add another Location first.{% endif %}</small></span></label>
+            <div class="nested-location-field" data-location-fields="exit">
+              <label>Location<select name="profile_id" {% if not ready_additional_profiles %}disabled{% endif %}><option value="">Choose a Location</option>{% for profile in additional_profiles %}{% set location_ready = profile.health_state in ['healthy', 'active'] %}{% set ipv6_ready = profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] %}<option value="{{ profile.id }}" data-ipv6-ready="{{ 'true' if ipv6_ready else 'false' }}" {% if data.get('profile_id') == profile.id and location_ready %}selected{% endif %} {% if not location_ready %}disabled{% endif %}>{{ location_name(profile) }} · {{ ('IPv6 protected' if ipv6_ready else 'IPv6 blocked safely') if location_ready else 'Not ready yet' }}</option>{% endfor %}</select></label>
+            </div>
+            <label class="choice-card"><input type="radio" name="route_choice" value="pool" data-ipv6-ready="mixed" {% if data.get('route_choice') == 'pool' and ready_pool_ids %}checked{% endif %} {% if not ready_pool_ids %}disabled{% endif %}><span><strong>Backup group</strong><small>{% if ready_pool_ids %}Automatically try the next approved Location if one stops working.{% elif pools %}The Locations in your backup groups are still being checked.{% elif ready_additional_profiles %}Create a backup group on the Locations page first.{% else %}Add another Location, then create a backup group on the Locations page.{% endif %}</small></span></label>
+            <div class="nested-location-field" data-location-fields="pool">
+              <label>Backup group<select name="pool_id" {% if not ready_pool_ids %}disabled{% endif %}><option value="">Choose a group</option>{% for pool in pools %}<option value="{{ pool.id }}" {% if data.get('pool_id') == pool.id and pool.id in ready_pool_ids %}selected{% endif %} {% if pool.id not in ready_pool_ids %}disabled{% endif %}>{{ pool.name }}{% if pool.id not in ready_pool_ids %} · Not ready yet{% endif %}</option>{% endfor %}</select></label>
+            </div>
+          </fieldset>
+
+          <div class="setup-callout automatic-ipv6" data-automatic-ipv6><strong>IPv6 is handled automatically</strong><p data-automatic-ipv6-message>If this Location supports IPv6, CayVPN protects it too. If not, CayVPN blocks IPv6 safely while the rest of your connection keeps working.</p></div>
+
+          <fieldset class="choice-grid">
+            <legend>Web protection</legend>
+            <label class="choice-card"><input type="radio" name="dns_mode" value="ad_blocking" {% if ad_blocking_ready and data.get('dns_mode', 'ad_blocking') == 'ad_blocking' %}checked{% endif %} {% if not ad_blocking_ready %}disabled{% endif %}><span><strong>Block ads and trackers</strong><small>{% if ad_blocking_ready %}Recommended. Filter known ad and tracking addresses.{% else %}Not available on this server yet. Standard protection is ready.{% endif %}</small></span></label>
+            <label class="choice-card"><input type="radio" name="dns_mode" value="standard" {% if data.get('dns_mode') == 'standard' or not ad_blocking_ready %}checked{% endif %}><span><strong>Standard protection</strong><small>Use private web lookups without filtering.</small></span></label>
+          </fieldset>
+
+          <details class="technical-details advanced-settings" {% if errors and data.get('ipv6_policy') == 'required' %}open{% endif %}>
+            <summary>Advanced protection</summary>
+            <label class="checkbox"><input type="checkbox" name="require_ipv6" {% if data.get('ipv6_policy') == 'required' %}checked{% endif %}><span><strong>Require IPv6</strong><small>Only use IPv6-ready Locations. If none are available, block the whole VPN connection.</small></span></label>
+            <p>IPv4 and IPv6 always use the same Location. CayVPN never sends one address family around the route you selected.</p>
+          </details>
+          <div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Continue</button></div>
+        </form>
+      {% else %}
+        <h2>Review and create</h2>
+        <dl class="review-list">
+          <div><dt>Device</dt><dd>{{ data.get('name') }}</dd></div>
+          <div><dt>App</dt><dd>{{ 'Amnezia' if data.get('ingress_protocol') == 'amneziawg' else 'Standard WireGuard' }}</dd></div>
+          <div><dt>Location</dt><dd>{% if data.get('route_choice') == 'pool' %}{% for pool in pools if pool.id == data.get('pool_id') %}{{ pool.name }} · backup group{% endfor %}{% else %}{% for profile in profiles if profile.id == data.get('profile_id') %}{{ location_name(profile) }}{% endfor %}{% endif %}</dd></div>
+          <div><dt>IPv6 protection</dt><dd>{% if data.get('ipv6_policy') == 'required' %}Required{% elif data.get('route_choice') == 'pool' %}Handled automatically for the active Location{% else %}{% for profile in profiles if profile.id == data.get('profile_id') %}{{ 'Protected' if profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] else 'Blocked safely while the rest stays connected' }}{% endfor %}{% endif %}</dd></div>
+          <div><dt>Web protection</dt><dd>{{ 'Ad and tracker blocking' if data.get('dns_mode') == 'ad_blocking' else 'Standard protection' }}</dd></div>
+        </dl>
+        <p class="verification-note">CayVPN finishes its safety checks before this device can connect. The next page gives you the QR code, download, and simple installation steps.</p>
+        <div class="wizard-actions">
+          <form method="post" action="{{ url_for('wizard_step', kind=kind, draft_id=draft.id, step=step) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button></form>
+          <form method="post" action="{{ url_for('complete_client_wizard', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Create device</button></form>
+        </div>
+      {% endif %}
+
+    {% elif kind == 'exit' %}
+      {% if step == 1 %}
+        <h2>What kind of Location are you adding?</h2>
+        <p class="muted">This server is ready now. Choose where the new Location comes from.</p>
+        <form method="post" class="stack-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <fieldset class="choice-grid" data-required-choice>
+            <legend>Connection type</legend>
+            <label class="choice-card"><input type="radio" name="driver" value="additional_ip" {% if data.get('driver') == 'additional_ip' %}checked{% endif %}><span><strong>Another address from my server provider</strong><small>Use a floating, reserved, or additional address that is already attached to this server.</small></span></label>
+            <label class="choice-card"><input type="radio" name="driver" value="provider_tunnel" {% if data.get('driver') == 'provider_tunnel' %}checked{% endif %}><span><strong>A VPN provider</strong><small>Paste a WireGuard or Amnezia configuration supplied by the provider.</small></span></label>
+            <label class="choice-card"><input type="radio" name="driver" value="socks5" {% if data.get('driver') == 'socks5' %}checked{% endif %} {% if not socks5_ready %}disabled{% endif %}><span><strong>A proxy</strong><small>{% if socks5_ready %}Enter the SOCKS5 details and CayVPN will test what it supports.{% else %}Proxy support is not installed on this server yet.{% endif %}</small></span></label>
+          </fieldset>
+          <div class="wizard-actions"><span></span><button class="button button-primary" type="submit" data-choice-submit data-ready-label="Continue" data-waiting-label="Select a connection type">Continue</button></div>
+        </form>
+      {% elif step == 2 %}
+        <h2>Name it and add the details</h2>
+        <p class="muted">Use a recognizable name, such as Miami or London. CayVPN saves private details securely and never shows them again.</p>
+        <form method="post" class="stack-form" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Location name<input name="name" value="{{ data.get('name', '') }}" placeholder="Miami or London" required maxlength="120" autofocus></label>
+          {% if data.get('driver') == 'additional_ip' %}
+            <div class="setup-callout"><strong>Before continuing</strong><p>Attach the address to this server in your provider dashboard. CayVPN will never ask for your provider account password or API key.</p></div>
+            <div class="field-pair"><label>IPv4 address<input name="address" value="{{ data.get('config', {}).get('address', '') }}" required></label><label>IPv4 prefix or netmask<input name="prefix" value="{{ data.get('config', {}).get('prefix', '32') }}" required></label></div>
+            <div class="field-pair"><label>IPv4 gateway<input name="gateway" value="{{ data.get('config', {}).get('gateway', '') }}"></label><label>Server network interface<input name="interface" value="{{ data.get('config', {}).get('interface', out_interface) }}" required></label></div>
+            <div class="field-pair"><label>IPv6 address <span class="optional">optional</span><input name="ipv6_address" value="{{ data.get('config', {}).get('ipv6_address', '') }}" placeholder="2001:db8::20"></label><label>IPv6 prefix<input name="ipv6_prefix" value="{{ data.get('config', {}).get('ipv6_prefix', '128') }}"></label></div>
+            <label>IPv6 gateway <span class="optional">optional</span><input name="ipv6_gateway" value="{{ data.get('config', {}).get('ipv6_gateway', '') }}"></label>
+          {% elif data.get('driver') == 'socks5' %}
+            <label>SOCKS5 address<input name="endpoint" value="{{ data.get('config', {}).get('endpoint', '') }}" placeholder="socks5://username@proxy.example:1080" required></label>
+            <label>Proxy password {% if data.get('secret_supplied') %}<span class="supplied">Configuration supplied · leave blank to keep it</span>{% endif %}<input name="password" type="password" autocomplete="new-password"></label>
+          {% else %}
+            <label>Provider configuration {% if data.get('secret_supplied') %}<span class="supplied">Configuration supplied · paste again only to replace it</span>{% endif %}<textarea name="config_text" rows="14" {% if not data.get('secret_supplied') %}required{% endif %} spellcheck="false"></textarea></label>
+          {% endif %}
+          <details class="technical-details"><summary>Technical details</summary><p>IPv6-only exits are not supported in this release. Imported tunnels must provide a full IPv4 route; IPv6 also needs a provider-assigned IPv6 interface address and <code>::/0</code>.</p></details>
+          <div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Continue</button></div>
+        </form>
+      {% elif step == 3 %}
+        <h2>Run safety checks</h2>
+        <p class="muted">CayVPN checks that this Location can safely carry normal browsing, apps, and private web lookups. No device changes yet.</p>
+        {% if data.get('check') %}
+          {% set check = data.get('check') %}
+          <div class="family-grid">
+            {% for family in ['ipv4', 'ipv6'] %}{% set caps = check.get('capabilities', {}).get('families', {}).get(family, {}) %}
+              <div class="family-card"><strong>{{ 'Internet connection' if family == 'ipv4' else 'IPv6' }}</strong><span class="health health-{{ 'healthy' if caps.get('tcp') and caps.get('dns') else 'blocked' }}">{{ 'ready' if caps.get('tcp') and caps.get('dns') else 'blocked safely' }}</span><details class="technical-details table-details"><summary>Technical details</summary><p>TCP {{ 'ready' if caps.get('tcp') else 'blocked' }} · UDP {{ 'ready' if caps.get('udp') else 'blocked' }} · DNS {{ 'ready' if caps.get('dns') else 'blocked' }}</p></details></div>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <form method="post" class="stack-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Run checks</button></div>
+        </form>
+      {% elif step == 4 %}
+        {% set check = data.get('check', {}) %}
+        <h2>What CayVPN found</h2>
+        <div class="family-grid">
+          {% for family in ['ipv4', 'ipv6'] %}{% set caps = check.get('capabilities', {}).get('families', {}).get(family, {}) %}
+            <div class="family-card"><strong>{{ 'Internet connection' if family == 'ipv4' else 'IPv6' }}</strong><span class="health health-{{ 'healthy' if caps.get('tcp') and caps.get('dns') else 'blocked' }}">{{ 'ready' if caps.get('tcp') and caps.get('dns') else 'blocked safely' }}</span><details class="technical-details table-details"><summary>Technical details</summary><p>TCP {{ 'ready' if caps.get('tcp') else 'blocked' }} · UDP {{ 'ready' if caps.get('udp') else 'blocked' }} · DNS {{ 'ready' if caps.get('dns') else 'blocked' }}{% if family == 'ipv4' and check.get('observed_exit_ipv4') %}<br>Observed address {{ check.get('observed_exit_ipv4') }}{% elif family == 'ipv6' and check.get('observed_exit_ipv6') %}<br>Observed address {{ check.get('observed_exit_ipv6') }}{% endif %}</p></details></div>
+          {% endfor %}
+        </div>
+        {% if check.get('warnings') %}<div class="notice notice-warning"><strong>Warnings</strong><ul>{% for warning in check.get('warnings') %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+        <p class="verification-note">No existing device will change. Saving requires secure access and cancels safely if any required check fails.</p>
+        <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Continue</button></div></form>
+      {% else %}
+        <h2>Review and save</h2>
+        <dl class="review-list"><div><dt>Name</dt><dd>{{ data.get('name') }}</dd></div><div><dt>Connection type</dt><dd>{{ 'Server provider address' if data.get('driver') == 'additional_ip' else 'VPN provider' if data.get('driver') == 'provider_tunnel' else 'Proxy' }}</dd></div><div><dt>Private details</dt><dd>{{ 'Configuration supplied' if data.get('secret_supplied') else 'Not needed' }}</dd></div><div><dt>Device changes</dt><dd>None until you choose this Location for a device</dd></div></dl>
+        <p class="verification-note">CayVPN may briefly start this Location while checking it. If a check fails, no device will use it.</p>
+        <div class="wizard-actions">
+          <form method="post" action="{{ url_for('wizard_step', kind=kind, draft_id=draft.id, step=step) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button></form>
+          <form method="post" action="{{ url_for('complete_exit_wizard', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Save and check</button></form>
+        </div>
+      {% endif %}
+
+    {% else %}
+      {% if step == 1 %}
+        <h2>Choose the first Location</h2><p class="muted">CayVPN uses this Location normally, then tries only the backups you approve.</p>
+        <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Backup group name<input name="name" value="{{ data.get('name', '') }}" placeholder="Home with backup" required autofocus></label><label>First Location<select name="primary_id" required><option value="">Choose the first Location</option>{% for profile in profiles %}<option value="{{ profile.id }}" {% if data.get('primary_id') == profile.id %}selected{% endif %}>{{ location_option(profile) }}</option>{% endfor %}</select></label><div class="wizard-actions"><span></span><button class="button button-primary" type="submit">Continue</button></div></form>
+      {% elif step == 2 %}
+        <h2>Add backups in order</h2><p class="muted">Backup 1 is tried first. Leave later choices empty if you do not need them.</p>
+        <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% for index in range(1, 5) %}<label>Backup {{ index }} <span class="optional">optional</span><select name="backup_{{ index }}" data-pool-backup><option value="">No Location</option>{% for profile in profiles if profile.id != data.get('primary_id') %}<option value="{{ profile.id }}" {% if data.get('profile_ids', [])[index] is defined and data.get('profile_ids', [])[index] == profile.id %}selected{% endif %}>{{ location_option(profile) }}</option>{% endfor %}</select></label>{% endfor %}<p class="muted small">A Location disappears from the other lists after you choose it, so every backup is used only once.</p><div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Continue</button></div></form>
+      {% elif step == 3 %}
+        <h2>What happens if a Location stops working?</h2><p class="muted">CayVPN confirms the problem, then moves the device to the next approved backup.</p><div class="notice notice-warning"><strong>If every approved Location stops working</strong><p>Traffic stays blocked. CayVPN never uses an address you did not choose.</p></div><details class="technical-details"><summary>Technical details</summary><p>CayVPN waits for three failed checks before moving devices. A recovered Location needs two successful checks. Returning to the first Location is always manual.</p></details>
+        <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="checkbox"><input type="checkbox" name="all_failed" value="block" {% if data.get('all_failed') == 'block' %}checked{% endif %} required><span>I understand traffic stays blocked when all Locations fail.</span></label><div class="wizard-actions"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button><button class="button button-primary" type="submit">Continue</button></div></form>
+      {% else %}
+        <h2>Review and save</h2><p class="muted">First choice, then backups:</p><ol class="ordered-exits">{% for profile_id in data.get('profile_ids', [data.get('primary_id')]) %}{% for profile in profiles if profile.id == profile_id %}<li><strong>{{ location_name(profile) }}</strong> · {{ location_status_summary(profile) }}</li>{% endfor %}{% endfor %}</ol><p class="verification-note">CayVPN moves devices only after confirming a Location is unavailable. Returning to the first Location remains manual.</p><div class="wizard-actions"><form method="post" action="{{ url_for('wizard_step', kind=kind, draft_id=draft.id, step=step) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" name="action" value="back" type="submit" formnovalidate>Back</button></form><form method="post" action="{{ url_for('complete_pool_wizard', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Save backup group</button></form></div>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

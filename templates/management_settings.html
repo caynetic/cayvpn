@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}System · CayVPN{% endblock %}
+{% block content %}
+<div class="section-heading"><div><p class="eyebrow">Server care</p><h1>System</h1><p class="muted">Updates, backups, capacity, and server health stay visible here. Technical details remain available when you need them.</p></div><div class="actions"><a class="button" href="{{ url_for('capacity') }}">Capacity</a><a class="button" href="{{ url_for('server') }}">Server health</a></div></div>
+<section class="card system-preferences"><div class="card-heading"><div><p class="eyebrow">Helpful details</p><h2>Your server plan</h2></div><span class="health health-healthy">private</span></div><p class="muted">Your provider account stays outside CayVPN. These optional fields only improve capacity estimates and how the server is presented.</p><form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Server region<input name="server_region" value="{{ server_region }}" maxlength="500"></label><label>Monthly transfer allowance (GB)<input name="transfer_allowance_gb" inputmode="numeric" value="{{ transfer_allowance }}"></label><label>Advertised port speed (Mbps)<input name="advertised_mbps" inputmode="numeric" value="{{ advertised_mbps }}"></label><button class="button button-primary" type="submit">Save and refresh capacity</button></form></section>
+{% set update_state = update_status.get('state', 'idle') %}
+{% set offered_release = update_status.get('release') or {} %}
+{% set release_metadata = update_status.get('release_metadata') or {} %}
+{% set active_update = update_state in ['stage_queued', 'staging', 'install_queued', 'installing'] %}
+<section class="card update-card" data-update-monitor="{{ 'true' if active_update else 'false' }}" data-update-state="{{ update_state }}">
+  <h2>CayVPN updates</h2>
+  <p><strong>Installed:</strong> {{ current_release }}</p>
+  <p class="muted">CayVPN checks for updates only when you ask. Every download is verified before you can install it, and a restore point protects the working version if anything goes wrong.</p>
+  <details class="technical-details"><summary>How updates stay safe</summary><p class="muted small">Only immutable releases signed by CayVPN's offline release key are accepted. Updates never install silently.</p></details>
+  {% if update_state == 'available' %}
+    <div class="notice notice-info">
+      <strong>{{ offered_release.get('title') or ('CayVPN ' ~ offered_release.get('version', 'update')) }}</strong>
+      <p>Version {{ offered_release.get('version') }}{% if update_release_date %} was published {{ update_release_date }}{% endif %}.</p>
+      {% if offered_release.get('notes') %}<details><summary>Release notes</summary><pre class="release-notes">{{ offered_release.get('notes') }}</pre></details>{% endif %}
+      {% if offered_release.get('page_url') %}<p><a class="text-link" href="{{ offered_release.get('page_url') }}" rel="noopener" target="_blank">Review the immutable GitHub release</a></p>{% endif %}
+    </div>
+    <form method="post" action="{{ url_for('stage_update_from_panel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="release" value="{{ offered_release.get('version') }}"><button class="button button-primary" type="submit">Download and verify</button></form>
+  {% elif update_state == 'staged' %}
+    <div class="notice notice-success"><strong>CayVPN {{ update_status.get('target_release') }} is verified and ready.</strong><p>The active VPN has not changed yet. Installation will restart CayVPN services and may briefly reconnect this settings page.</p></div>
+    {% if release_metadata.get('summary') or release_metadata.get('migration_notes') or release_metadata.get('component_changes') or release_metadata.get('compatibility_notes') or release_metadata.get('requires_reboot') or release_metadata.get('security_fixes') %}
+      <div class="notice notice-info">
+        <strong>What to expect</strong>
+        {% if release_metadata.get('summary') %}<p>{{ release_metadata.get('summary') }}</p>{% endif %}
+        {% if release_metadata.get('expected_interruption_seconds') %}<p>Expected reconnect window: about {{ release_metadata.get('expected_interruption_seconds') }} seconds.</p>{% endif %}
+        {% if release_metadata.get('requires_reboot') %}<p>A server restart will be required after installation. CayVPN will not restart it automatically.</p>{% endif %}
+        {% if release_metadata.get('security_fixes') %}<p>This release includes security fixes.</p>{% endif %}
+        {% if release_metadata.get('migration_notes') %}<details><summary>Migration notes</summary><p>{{ release_metadata.get('migration_notes') }}</p></details>{% endif %}
+        {% if release_metadata.get('component_changes') %}<details><summary>Included component changes</summary><ul>{% for item in release_metadata.get('component_changes') %}<li>{{ item }}</li>{% endfor %}</ul></details>{% endif %}
+        {% if release_metadata.get('compatibility_notes') %}<details><summary>Compatibility notes</summary><ul>{% for item in release_metadata.get('compatibility_notes') %}<li>{{ item }}</li>{% endfor %}</ul></details>{% endif %}
+      </div>
+    {% endif %}
+    <div class="actions update-actions">
+      <form class="inline-form" method="post" action="{{ url_for('install_update_from_panel') }}" data-confirm="Install CayVPN {{ update_status.get('target_release') }} now? Existing VPN connections may briefly reconnect."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="release" value="{{ update_status.get('target_release') }}"><button class="button button-primary" type="submit">Install verified update</button></form>
+      <form class="inline-form" method="post" action="{{ url_for('discard_update_from_panel') }}" data-confirm="Remove the downloaded CayVPN {{ update_status.get('target_release') }} package? Your active VPN will not change."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="release" value="{{ update_status.get('target_release') }}"><button class="button" type="submit">Not now — remove download</button></form>
+    </div>
+    <p class="muted">Installing requires secure access. Your CayVPN settings connection works directly; optional sign-in, authenticator, passkey, and server-recovery choices work too. Removing the inactive download does not need confirmation.</p>
+  {% elif active_update %}
+    <div class="notice notice-info"><strong id="update-progress">{{ 'Downloading and verifying the update…' if update_state in ['stage_queued', 'staging'] else 'Installing and checking the update…' }}</strong><p>You can leave this page. CayVPN keeps the current release active until the new package is verified, and restores it if installation health checks fail.</p></div>
+  {% elif update_state in ['stage_failed', 'install_failed', 'install_interrupted', 'check_failed'] %}
+    <div class="notice notice-warning"><strong>The update did not complete.</strong><p>{{ update_status.get('error_message') or 'Nothing unverified was activated.' }}</p>{% if update_status.get('rolled_back') %}<p>The previous verified release was restored.</p>{% endif %}</div>
+    <form method="post" action="{{ url_for('check_updates_from_panel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Check again</button></form>
+  {% else %}
+    {% if update_state == 'current' %}<p class="notice notice-success">This server is on the latest stable release known to the update service.</p>{% elif update_state == 'installed' %}<p class="notice notice-success">CayVPN {{ update_status.get('current_release', current_release) }} was installed and passed its health checks.</p>{% elif update_state == 'discarded' %}<p class="notice notice-success">The downloaded update was removed. Your active VPN was not changed.</p>{% endif %}
+    <form method="post" action="{{ url_for('check_updates_from_panel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Check for updates</button></form>
+  {% endif %}
+  <hr>
+  <h3>Ubuntu security updates</h3>
+  <p class="muted">Security fixes are installed automatically by Ubuntu. CayVPN never restarts the server automatically.</p>
+  {% if reboot_required %}
+    <div class="notice notice-warning"><strong>A server restart is required to finish security updates.</strong><p>Restart it at a convenient time; VPN connections will reconnect afterward.</p>{% if reboot_packages %}<details><summary>Packages waiting for restart</summary><ul>{% for package in reboot_packages %}<li>{{ package }}</li>{% endfor %}</ul></details>{% endif %}</div>
+  {% else %}
+    <p class="notice notice-success">No security-update restart is currently required.</p>
+  {% endif %}
+</section>
+<section class="card backup-card"><p class="eyebrow">Recovery</p><h2>Encrypted backup</h2><p class="muted">A backup keeps everything CayVPN needs to restore this setup. It is encrypted before it is saved, and your passphrase protects it.</p><details class="technical-details"><summary>Technical details</summary><p>Backups include keys, routes, settings, certificates, and encrypted provider credentials. A root-only service creates the archive; the settings page never reads unencrypted credentials.</p></details><form method="post" action="{{ url_for('create_backup_from_panel') }}" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Backup passphrase<input type="password" name="passphrase" minlength="12" autocomplete="new-password" required></label><button class="button" type="submit">Create encrypted backup</button></form>{% if not owner_approval_ready %}<p class="muted small">CayVPN asks for owner confirmation before creating the backup.</p>{% endif %}</section>
+<section class="card administration-card"><p class="eyebrow">Secure access</p><h2>How you manage CayVPN</h2>{% if remote_admin_enabled %}<p class="muted">Optional sign-in is available at <code>{{ remote_admin_origin }}</code>. Your private settings connection remains available for recovery.</p>{% else %}<p class="muted">This settings page is available only while your CayVPN settings connection is active. It is not open to the public internet.</p><details class="technical-details"><summary>Technical details</summary><p><code>{{ admin_hostname }}</code> is reachable only through CayVPN's secure access methods.</p></details>{% endif %}<p><a class="text-link" href="{{ url_for('security_page') }}">Change secure access</a> · <a class="text-link" href="{{ url_for('server') }}">View technical server health</a></p></section>
+{% endblock %}

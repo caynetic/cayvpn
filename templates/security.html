@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Security · CayVPN{% endblock %}
+{% block content %}
+<div class="section-heading">
+  <div>
+    <p class="eyebrow">Access and recovery</p>
+    <h1>Security</h1>
+    <p class="muted">Secure access is ready by default. Password sign-in, authenticator codes, and passkeys are optional.</p>
+  </div>
+  <a class="button" href="{{ url_for('index') }}">Overview</a>
+</div>
+
+<div class="two-column security-grid">
+  <section class="card security-lead">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Simple default</p>
+        <h2>Secure access</h2>
+      </div>
+      <span class="health health-{{ 'healthy' if trusted_owner_tunnel else 'pending' }}">{{ 'connected' if trusted_owner_tunnel else 'ready' }}</span>
+    </div>
+    <p class="muted">Turn on the CayVPN connection from your setup folder whenever you want to change settings. No password, authenticator code, or passkey is required.</p>
+    <p class="muted small">Keep that connection file private. If a settings device is lost, remove it below and add a replacement.</p>
+    <details class="technical-details"><summary>Technical details</summary><p>The setup folder is the owner kit created during installation. Its <code>admin.conf</code> WireGuard tunnel acts as a revocable owner key.</p></details>
+  </section>
+
+  <section class="card security-option-card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Optional access</p>
+        <h2>Optional sign-in</h2>
+      </div>
+      <span class="health health-{{ 'healthy' if owner_login_enabled else 'blocked' }}">{{ 'enabled' if owner_login_enabled else 'off' }}</span>
+    </div>
+    {% if remote_admin_enabled %}
+      <p class="muted">Sign-in works from anywhere at <code>{{ remote_admin_origin }}</code>. Use your owner password{% if owner_totp_enabled %} plus an authenticator code{% endif %}.</p>
+    {% else %}
+      <p class="muted">Set this up only if you want another way to open CayVPN settings. Password-only is the easy default; an authenticator is optional extra security.</p>
+    {% endif %}
+    {% if owner_login_enabled %}
+      <div class="actions">
+        <form method="post" action="{{ url_for('start_owner_login_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Change sign-in</button></form>
+        <form method="post" action="{{ url_for('disable_owner_login') }}" data-confirm="Disable optional sign-in, close remote access, and end signed-in sessions?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-danger" type="submit">Disable</button></form>
+      </div>
+      {% if not owner_approval_ready %}<p class="muted small">CayVPN asks for your password{% if owner_totp_enabled %} and authenticator code{% endif %} before changing or disabling sign-in when secure access is off.</p>{% endif %}
+    {% else %}
+      <form method="post" action="{{ url_for('start_owner_login_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Set up optional sign-in</button></form>
+    {% endif %}
+    {% for draft in owner_login_drafts %}<div class="list-row"><div><strong>Unfinished optional sign-in</strong><small>Step {{ draft.current_step }} of 3 · saved for 24 hours</small></div><a class="button button-small" href="{{ url_for('owner_login_setup', draft_id=draft.id, step=draft.current_step) }}">Resume</a></div>{% endfor %}
+  </section>
+
+  <section class="card security-option-card" id="passkey-controls" data-register-options-url="{{ url_for('passkey_register_options') }}" data-register-url="{{ url_for('passkey_register') }}" data-auth-options-url="{{ url_for('passkey_authenticate_options') }}" data-auth-url="{{ url_for('passkey_authenticate') }}" data-csrf-token="{{ csrf_token() }}">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Optional shortcut</p>
+        <h2>Passkeys</h2>
+      </div>
+      <div class="actions">
+        {% if owner_approval_ready %}<span class="health health-healthy">ready to add</span>{% endif %}
+        {% if not remote_owner_session %}
+          <button class="button" id="register-passkey" type="button">Add a passkey</button>
+          {% if credentials %}<button class="button" id="approve-passkey" type="button">Use passkey</button>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <p class="muted small">Skip this if you prefer. A passkey is another optional way to confirm an important change when secure access is off.</p>
+    <div id="passkey-message" class="muted small" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="notice notice-warning hidden" id="passkey-secure-context-warning" role="alert">
+      <strong>Trust CayVPN before adding an optional passkey</strong>
+      <p>Open <code>cayvpn-ca.crt</code> from your CayVPN setup folder in Keychain Access, trust it for Secure Sockets Layer (SSL), then fully quit and reopen this browser.</p>
+    </div>
+    {% if remote_owner_session %}<div class="notice notice-info"><strong>Passkeys stay private</strong><p>Use your owner password{% if owner_totp_enabled %} and authenticator code{% endif %} here. Optional passkeys are available only from the private CayVPN hostname.</p></div>{% endif %}
+    {% for credential in credentials %}
+      <div class="list-row">
+        <div><strong>{{ credential.label }}</strong><small>Added {{ credential.created_at }}</small></div>
+        <span class="health health-healthy">enrolled</span>
+      </div>
+    {% else %}
+      <div class="empty"><p>No passkey enrolled. That is completely optional.</p></div>
+    {% endfor %}
+  </section>
+
+  <section class="card security-option-card">
+    <p class="eyebrow">Recovery option</p>
+    <h2>Server recovery</h2>
+    <p class="muted small">Use this only if your normal access methods are unavailable.</p>
+    <details class="technical-details"><summary>Technical details</summary><p>Connect to the server with SSH, run <code>sudo cayvpnctl recovery approve</code>, and enter a one-time code when prompted. Enter that same code below within five minutes.</p></details>
+    <form method="post" action="{{ url_for('approve_security') }}" class="stack-form spaced-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>One-time approval code<input type="password" name="recovery_code" required autocomplete="one-time-code" maxlength="256"></label>
+      <button class="button button-primary" type="submit">Approve sensitive actions</button>
+    </form>
+  </section>
+</div>
+
+<section class="card spaced-form owner-devices-card">
+  <p class="eyebrow">Secure access</p>
+  <h2>Settings devices</h2>
+  {% for device in devices %}
+    <div class="list-row">
+      <div>
+        <strong>{{ device.name }}</strong>
+        <details class="technical-details table-details"><summary>Technical details</summary><p>Private address: <code>{{ device.address }}</code>.{% if device.enabled and not device.private_key_enc %} The initial configuration is stored in the SSH recovery path.{% endif %}</p></details>
+        {% if not device.enabled and device.private_key_enc %}<small>Encrypted key cleanup is pending.</small>{% endif %}
+      </div>
+      <div class="actions">
+        <span class="health health-{{ 'healthy' if device.enabled else 'blocked' }}">{{ 'active' if device.enabled else 'revoked' }}</span>
+        {% if device.enabled and device.private_key_enc %}<a class="button button-small" href="{{ url_for('admin_device_config', device_id=device.id) }}">Config</a>{% endif %}
+        {% if device.enabled %}
+          <form method="post" action="{{ url_for('revoke_admin_device', device_id=device.id) }}" class="inline-form" data-confirm="Revoke this admin device and terminate its sessions?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button button-small button-danger" type="submit">Revoke</button>
+          </form>
+        {% elif device.private_key_enc %}
+          <form method="post" action="{{ url_for('revoke_admin_device', device_id=device.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button button-small" type="submit">Finish cleanup</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty"><p>No settings device has been added.</p></div>
+  {% endfor %}
+  <form method="post" action="{{ url_for('add_admin_device') }}" class="stack-form spaced-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Name this settings device<input name="name" placeholder="MacBook, phone" required maxlength="120"></label>
+    <button class="button button-primary" type="submit">Add device</button>
+  </form>
+  {% if not owner_approval_ready %}<p class="muted small">Turn on secure access or use an optional confirmation method before adding, downloading, or removing a settings device.</p>{% elif trusted_owner_tunnel %}<p class="muted small">Secure access is active, so you can manage settings devices now.</p>{% else %}<p class="muted small">Your current confirmation allows these device changes.</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Server health · CayVPN{% endblock %}
+{% block content %}
+<div class="section-heading"><div><p class="eyebrow">Technical status</p><h1>Server health</h1><p class="muted">This page contains technical checks for troubleshooting and recovery.</p></div><a class="button" href="{{ url_for('index') }}">Overview</a></div>
+<section class="card"><dl class="details"><dt>Install state</dt><dd>{{ node.install_state }}</dd><dt>Release</dt><dd>{{ node.release }}</dd><dt>Desired generation</dt><dd>{{ node.desired_generation }}</dd><dt>Observed generation</dt><dd>{{ node.observed_generation }}</dd><dt>Agent socket</dt><dd><code>{{ agent_socket }}</code></dd><dt>Network changes</dt><dd>{{ 'enabled' if apply_network else 'dry / pending agent' }}</dd><dt>Reboot</dt><dd>{{ 'required after Ubuntu security updates' if reboot_required else 'not currently required' }}</dd></dl></section>
+<section class="card"><h2>Recovery</h2><p class="muted">Use the SSH-only <code>cayvpnctl verify</code>, <code>cayvpnctl backup</code>, and <code>cayvpnctl recovery approve</code> commands for high-risk recovery actions.</p></section>
+{% endblock %}

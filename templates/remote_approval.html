@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Confirm sensitive change · CayVPN{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <img src="{{ url_for('static', filename='logo.svg') }}" alt="CayVPN" class="auth-logo">
+  <p class="eyebrow">Extra protection</p>
+  <h1>Confirm this change</h1>
+  <p class="muted">Enter your owner password{% if totp_required %} and {{ 'a new' if fresh_code_required else 'the current' }} six-digit code from your authenticator{% endif %}. This approval lasts five minutes.</p>
+  {% if error %}<div class="error-summary" id="error-summary" data-error-summary role="alert" tabindex="-1"><strong>Approval failed</strong><p>{{ error }}</p></div>{% endif %}
+  <form method="post" class="stack-form" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next_path }}">
+    <label>Owner password<input type="password" name="password" autocomplete="current-password" maxlength="256" required autofocus {% if error %}aria-invalid="true" aria-describedby="error-summary"{% endif %}></label>
+    {% if totp_required %}<label>{{ 'New' if fresh_code_required else 'Current' }} six-digit code<input type="text" name="totp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required {% if error %}aria-invalid="true" aria-describedby="error-summary"{% endif %}></label>{% endif %}
+    {% if totp_required and fresh_code_required %}<p class="muted small">The code used to sign in cannot approve a sensitive change. Wait for the next code if needed.</p>{% endif %}
+    <div class="wizard-actions"><a class="button" href="{{ next_path }}">Cancel</a><button class="button button-primary" type="submit">Approve for five minutes</button></div>
+  </form>
+</section>
+{% endblock %}

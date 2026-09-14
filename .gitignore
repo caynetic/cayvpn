@@ -103,6 +103,7 @@ celerybeat.pid
 
 # Environments
 .env
+.secrets/
 .venv
 env/
 venv/
@@ -136,3 +137,25 @@ wg.db
 # Flask-Session storage
 sessions/
 flask_session/
+
+# CayVPN 2.0 local runtime state
+data/
+config/
+wireguard/
+releases/
+
+# macOS filesystem metadata
+.DS_Store
+._*
+__MACOSX/
+
+# Private operational history and acceptance-server details, retained locally.
+CAYVPN_2_HANDOFF.md
+docs/acceptance-2026-09-12.md
+docs/client-settings-acceptance-2026-09-13.md
+docs/cloudzy-installed-candidate-2026-09-13.md
+docs/configuration-changes-2026-09-13.md
+docs/digitalocean-configurations-2026-09-14.md
+docs/release-acceptance-2026-09-13.md
+docs/release-preparation-2026-09-13.md
+docs/test-vps-transition-2026-09-14.md

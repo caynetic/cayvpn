@@ -1,0 +1,49 @@
+{% macro capability_summary(profile) -%}
+  {%- set capabilities = profile.capabilities -%}
+  {%- if profile.health_state == 'pending' -%}
+    Verification pending · traffic blocked
+  {%- elif profile.health_state == 'blocked' -%}
+    Blocked by safety check · traffic blocked
+  {%- elif profile.health_state not in ['healthy', 'active'] -%}
+    Health check failed · traffic blocked
+  {%- else -%}
+    {%- if capabilities.get('tcp') -%}TCP{%- else -%}TCP blocked{%- endif -%}
+    {%- if capabilities.get('dns') %} + DNS{% else %} · DNS blocked{% endif -%}
+    {%- if capabilities.get('udp') %} + UDP{% else %} · UDP/QUIC blocked{% endif -%}
+    {%- if capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] %} + IPv6 protected{% else %} · IPv6 blocked safely{% endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro location_status_summary(profile) -%}
+  {%- if profile.health_state == 'pending' -%}
+    Checking · traffic stays blocked
+  {%- elif profile.health_state == 'blocked' -%}
+    Not ready · traffic stays blocked
+  {%- elif profile.health_state not in ['healthy', 'active'] -%}
+    Needs attention · traffic stays blocked
+  {%- elif profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] -%}
+    Ready · IPv6 protected
+  {%- else -%}
+    Ready · IPv6 blocked safely
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro location_name(profile) -%}
+  {{- 'This server' if profile.driver == 'direct_ip' else profile.name -}}
+{%- endmacro %}
+
+{% macro location_ipv6_badge(profile) -%}
+  {%- if profile.health_state not in ['healthy', 'active'] -%}
+    <span class="health health-pending">Not ready yet</span>
+  {%- elif profile.capabilities.get('ipv6') and profile.ipv6_health_state in ['healthy', 'active'] -%}
+    <span class="health health-healthy">IPv6 protected</span>
+  {%- else -%}
+    <span class="health">IPv6 blocked safely</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro location_option(profile) -%}
+  {{- location_name(profile) }} · {{ location_status_summary(profile) }}
+{%- endmacro %}
+
+{% macro exit_option(profile) -%}{{ location_option(profile) }}{%- endmacro %}
