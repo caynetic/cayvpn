@@ -7,7 +7,7 @@ die() { log "ERROR: $*"; exit 1; }
 
 [[ "${EUID}" -eq 0 ]] || die "Run this command with sudo."
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 REPOSITORY="caynetic/cayvpn"
 TAG="v${VERSION}"
 BASE_URL="https://github.com/${REPOSITORY}/releases/download/${TAG}"
@@ -24,9 +24,14 @@ PINNED_RELEASE_KEY_SHA256="71b9f699c59c62410c76b8c2241251ffdea000412a3988c6a2f29
 if [[ ! -r /etc/os-release ]]; then
   die "CayVPN requires Ubuntu 24.04."
 fi
-# shellcheck disable=SC1091
-. /etc/os-release
-[[ "${ID:-}" == "ubuntu" && "${VERSION_ID:-}" == "24.04" ]] || die "CayVPN requires Ubuntu 24.04."
+# Keep distro variables (including VERSION) out of the release environment.
+if ! (
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  [[ "${ID:-}" == "ubuntu" && "${VERSION_ID:-}" == "24.04" ]]
+); then
+  die "CayVPN requires Ubuntu 24.04."
+fi
 
 case "$(dpkg --print-architecture)" in
   amd64|arm64) ;;

@@ -5,9 +5,9 @@ owner-supplied Ubuntu 24.04 VPS. It keeps the management panel, routing state,
 client configurations, and recovery path on the node; no Caynetic account,
 hosted relay, telemetry, or provider API credentials are required.
 
-**CayVPN 2.0.0** brings private administration, per-device connection settings,
+**CayVPN 2.0.1** brings private administration, per-device connection settings,
 verified routing, encrypted recovery, and signed updates to a clean Ubuntu
-24.04 server. Read the [release notes](docs/release-2.0.0.md) for compatibility
+24.04 server. Read the [release notes](docs/release-2.0.1.md) for compatibility
 and validation limits. CayVPN 1.x requires a new server and new client profiles;
 there is no in-place upgrade or automatic import.
 
@@ -87,10 +87,10 @@ The owner-facing install is one version-pinned command on an Ubuntu 24.04
 x86_64 or ARM64 VPS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/caynetic/cayvpn/v2.0.0/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/caynetic/cayvpn/v2.0.1/bootstrap.sh | sudo bash
 ```
 
-The command downloads the signed `v2.0.0` GitHub release. The bootstrap verifies
+The command downloads the signed `v2.0.1` GitHub release. The bootstrap verifies
 the Ed25519-signed file manifest before it
 runs any release code. Before changing the VPS, the guided installer validates
 the signed native-component lock and every bundled helper, confirms that the
@@ -206,7 +206,7 @@ dispatched `Build optional component bundle` workflow, then independently
 review its pinned sources, provenance, licenses, and binaries.
 
 Before transfer, record the exact reviewed wheel and component digests in
-`release-locks/2.0.0.json`. Review and commit that lock separately from the
+`release-locks/2.0.1.json`. Review and commit that lock separately from the
 artifact transfer; adjacent `SHA256SUMS` files detect transfer damage but are
 not signing authority. See [release-locks/README.md](release-locks/README.md).
 
@@ -219,7 +219,7 @@ a macOS Python environment cannot substitute for this check:
 CAYVPN_RELEASE_PYTHON=/opt/python3.12/bin/python3.12 \
 CAYVPN_COMPONENT_BUNDLE=/offline/path/cayvpn-components \
 ./scripts/build-release.sh \
-  2.0.0 \
+  2.0.1 \
   /offline/path/cayvpn-release-signing.key \
   /offline/path/cayvpn-wheelhouse
 ```
@@ -239,7 +239,7 @@ signature, archive, inventory, and fingerprint check passes.
 
 The build refuses to run until `PINNED_RELEASE_KEY_SHA256` in `bootstrap.sh`
 matches that key. Enable GitHub release immutability before creating the first
-2.0 release. Create `v2.0.0` as a draft, attach the archive, signed manifest,
+2.0 release. Create `v2.0.1` as a draft, attach the archive, signed manifest,
 signature, and public key, then publish it only after all four assets are
 present. Verify the exact public command on clean x86_64 and ARM64 fixtures
 before promoting it, and record the supported scope and remaining acceptance
