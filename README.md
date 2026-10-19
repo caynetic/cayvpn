@@ -15,9 +15,9 @@ Current release: **CayVPN 2.0.1** · [Read the release notes](docs/release-2.0.1
 [Documentation](#documentation) · [Releases](https://github.com/caynetic/cayvpn/releases) ·
 [Report a bug](https://github.com/caynetic/cayvpn/issues)
 
-[![CayVPN website showing the Your server. Your VPN. introduction and installation link](docs/images/cayvpn-website.jpg)](https://oss.caynetic.com/vpn/)
+[![Caynetic OSS illustration of CayVPN device management, Locations, signed updates, and an owner-supplied server](docs/images/cayvpn-illustration.webp)](https://oss.caynetic.com/vpn/)
 
-*The public [CayVPN website](https://oss.caynetic.com/vpn/), captured October 19, 2026.*
+*Project illustration from [Caynetic.com](https://caynetic.com/#products).*
 
 ## CayVPN or CayneticVPN?
 
