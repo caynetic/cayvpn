@@ -11,6 +11,14 @@ a hosted relay, telemetry, or access to your hosting-provider account.
 
 Current release: **CayVPN 2.0.1** · [Read the release notes](docs/release-2.0.1.md)
 
+[Website](https://oss.caynetic.com/vpn/) · [Quick start](#quick-start) ·
+[Documentation](#documentation) · [Releases](https://github.com/caynetic/cayvpn/releases) ·
+[Report a bug](https://github.com/caynetic/cayvpn/issues)
+
+[![CayVPN website showing the Your server. Your VPN. introduction and installation link](docs/images/cayvpn-website.jpg)](https://oss.caynetic.com/vpn/)
+
+*The public [CayVPN website](https://oss.caynetic.com/vpn/), captured October 19, 2026.*
+
 ## CayVPN or CayneticVPN?
 
 Choose the option that matches how much you want to manage yourself:
@@ -25,17 +33,17 @@ people who want to self-host CayVPN.
 
 ## What CayVPN gives you
 
-- A private web panel for managing your VPN.
-- WireGuard and optional AmneziaWG device configurations.
-- QR codes and downloadable configuration files for phones and computers.
-- Direct server-IP exits, attached additional IPs, provider tunnels, and
-  validated SOCKS5 exits.
-- Standard or ad-blocking DNS that follows the selected Location.
-- IPv6 leak protection when an exit does not support working IPv6.
-- Per-device Location, DNS, and IPv6 settings.
-- Health checks, encrypted backups, recovery tools, and signed updates.
-- Fail-closed routing: a broken exit is blocked instead of silently sending
-  traffic through the server's normal Internet connection.
+| Capability | What you control |
+| --- | --- |
+| Private administration | Manage the VPN through a private web panel and a separate admin connection. |
+| Device profiles | Create WireGuard or optional AmneziaWG profiles, then import a QR code or configuration file. |
+| Locations and exits | Choose the server IP, an attached additional IP, a provider tunnel, or a validated SOCKS5 exit. |
+| DNS and IPv6 | Set each device's Location, standard or ad-blocking DNS, and IPv6 policy. DNS follows the selected Location. |
+| Recovery and updates | Use health checks, encrypted backups, recovery tools, and owner-approved signed updates. |
+
+Routing fails closed: a broken exit is blocked instead of silently sending
+traffic through the server's normal Internet connection. IPv6 is blocked when
+the selected exit does not support working IPv6.
 
 Hosting-provider setup and billing stay in your hands. CayVPN does not create,
 resize, or pay for servers, and it never asks for provider API keys or SSH
